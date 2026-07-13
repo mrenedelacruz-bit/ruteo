@@ -134,11 +134,9 @@ PRODUCTS = [
     {"code": "WOP", "name": "WOP", "unit": "gal"},
 ]
 
-# Coordenadas aproximadas de la Refineria Dominicana de Petroleos (REFIDOMSA),
-# Haina, San Cristobal. Ajustar con la ubicacion GPS exacta de la planta.
 DEPOT = {
     "name": "Refineria Dominicana de Petroleos (REFIDOMSA)",
-    "address": "Autopista Las Americas, Haina, San Cristobal, Rep. Dominicana",
-    "lat": 18.4173,
-    "lng": -70.0339,
+    "address": "Carretera Sanchez Km. 17.5, Zona Industrial de Haina, San Cristobal",
+    "lat": 18.4239,
+    "lng": -70.0242,
 }

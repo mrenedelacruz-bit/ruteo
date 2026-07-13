@@ -90,8 +90,8 @@ ampliar esta lista según vaya cambiando la flota real — no es necesario
 tocar el código de la aplicación, sólo estos datos (o usar el endpoint
 `POST /trucks`).
 
-Las coordenadas de REFIDOMSA en `fleet_data.py` son aproximadas — deben
-ajustarse con la ubicación GPS exacta de la planta.
+El depósito REFIDOMSA está ubicado en Carretera Sánchez Km. 17.5, Zona
+Industrial de Haina, San Cristóbal (18.4239, -70.0242).
 
 ## Autenticación y roles
 
