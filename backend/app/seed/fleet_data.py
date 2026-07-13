@@ -174,6 +174,24 @@ FLEET: list[dict] = [
         "status": "active",
         "notes": "Camion WOP (diesel/gasolina); falta definir que compartimiento corresponde a cada producto",
     },
+    {
+        # Camion WOP adicional, misma distribucion de compartimientos que
+        # T-10. Marca/año de chasis y tanque pendientes de confirmar.
+        "code": "T-50",
+        "chassis_brand": "N/D",
+        "chassis_year": None,
+        "tank_brand": "N/D",
+        "tank_year": None,
+        "total_capacity": 10_000,
+        "compartments": [
+            {"capacity": 4_000, "product_code": None},
+            {"capacity": 1_000, "product_code": None},
+            {"capacity": 3_000, "product_code": None},
+            {"capacity": 2_000, "product_code": None},
+        ],
+        "status": "active",
+        "notes": "Camion WOP (diesel/gasolina); faltan datos de chasis/tanque y definir que compartimiento corresponde a cada producto",
+    },
 ]
 
 PRODUCTS = [
