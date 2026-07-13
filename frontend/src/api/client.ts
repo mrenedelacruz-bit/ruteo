@@ -4,8 +4,10 @@ import type {
   DispatchResult,
   Depot,
   GeocodeResult,
+  ManagedUser,
   Order,
   Product,
+  Trip,
   Truck,
 } from "./types";
 
@@ -75,4 +77,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ depot_id, order_ids: order_ids ?? null }),
     }),
+  listTrips: (status?: string) =>
+    request<Trip[]>(`/trips${status ? `?status=${status}` : ""}`),
+  startTrip: (id: number) => request<Trip>(`/trips/${id}/start`, { method: "POST" }),
+  cancelTrip: (id: number) => request<Trip>(`/trips/${id}/cancel`, { method: "POST" }),
+  deliverStop: (tripId: number, stopId: number) =>
+    request<Trip>(`/trips/${tripId}/stops/${stopId}/deliver`, { method: "POST" }),
+  listUsers: () => request<ManagedUser[]>("/users"),
+  createUser: (payload: { username: string; full_name: string; password: string; role: string }) =>
+    request<ManagedUser>("/users", { method: "POST", body: JSON.stringify(payload) }),
+  updateUser: (
+    id: number,
+    payload: Partial<{ full_name: string; role: string; is_active: boolean; password: string }>,
+  ) => request<ManagedUser>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
 };

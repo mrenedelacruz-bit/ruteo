@@ -79,6 +79,29 @@ Nominatim.
    como `assigned`, y devuelve el resultado (incluyendo *shortfalls* si la
    flota no alcanzó).
 
+### Ciclo de vida del viaje (`/trips`)
+
+```
+planned --start--> in_progress --(todas las paradas entregadas)--> completed
+planned/in_progress --cancel--> cancelled
+```
+
+- `POST /trips/{id}/start`: el camión sale; los pedidos pasan a `dispatched`.
+- `POST /trips/{id}/stops/{stop_id}/deliver`: confirma la entrega de una
+  parada (pedido pasa a `delivered`, se registra `delivered_at`); al
+  entregar la última parada el viaje se completa solo.
+- `POST /trips/{id}/cancel`: los pedidos aún no entregados vuelven a
+  `pending` para poder re-despacharlos; lo ya entregado no se revierte.
+
+La pestaña **Viajes** del frontend (solo despachadores) permite operar todo
+esto por pantalla, con filtro por estado.
+
+### Gestión de usuarios (`/users`)
+
+Solo despachadores. Alta de usuarios, cambio de rol, activar/desactivar y
+reseteo de clave desde la pestaña **Usuarios**. Un despachador no puede
+quitarse a sí mismo el acceso ni el rol.
+
 ## Datos de la flota
 
 `backend/app/seed/fleet_data.py` contiene los 10 camiones cisterna de la
@@ -161,9 +184,9 @@ Dos vistas:
 
 ## Próximos pasos sugeridos
 
-- Gestión de usuarios desde la UI (hoy se crean por seed o directamente en
-  la base de datos).
-- Estados de viaje en tiempo real (en curso, completado) y confirmación de
-  entrega con geolocalización del camión.
+- Confirmación de entrega con geolocalización del camión (app móvil del
+  chofer).
 - Instancia propia de OSRM con mapas de República Dominicana (el servidor
   público de demo no tiene garantías de disponibilidad).
+- Reportes: galones entregados por producto/cliente/período, kilómetros
+  recorridos por camión.

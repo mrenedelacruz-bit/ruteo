@@ -4,9 +4,11 @@ import { api, getToken } from "./api/client";
 import type { CurrentUser } from "./api/types";
 import { OrderForm } from "./pages/OrderForm";
 import { DispatchBoard } from "./pages/DispatchBoard";
+import { TripsBoard } from "./pages/TripsBoard";
+import { UsersAdmin } from "./pages/UsersAdmin";
 import { Login } from "./pages/Login";
 
-type Tab = "orders" | "dispatch";
+type Tab = "orders" | "dispatch" | "trips" | "users";
 
 function App() {
   const [tab, setTab] = useState<Tab>("orders");
@@ -55,9 +57,17 @@ function App() {
             Tomar pedido
           </button>
           {user.role === "dispatcher" && (
-            <button className={tab === "dispatch" ? "active" : ""} onClick={() => setTab("dispatch")}>
-              Despacho
-            </button>
+            <>
+              <button className={tab === "dispatch" ? "active" : ""} onClick={() => setTab("dispatch")}>
+                Despacho
+              </button>
+              <button className={tab === "trips" ? "active" : ""} onClick={() => setTab("trips")}>
+                Viajes
+              </button>
+              <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")}>
+                Usuarios
+              </button>
+            </>
           )}
           <span className="user-badge">
             {user.full_name} ({user.role === "dispatcher" ? "despachador" : "vendedor"})
@@ -67,7 +77,17 @@ function App() {
           </button>
         </nav>
       </header>
-      <main>{tab === "orders" || user.role !== "dispatcher" ? <OrderForm /> : <DispatchBoard />}</main>
+      <main>
+        {user.role !== "dispatcher" || tab === "orders" ? (
+          <OrderForm />
+        ) : tab === "dispatch" ? (
+          <DispatchBoard />
+        ) : tab === "trips" ? (
+          <TripsBoard />
+        ) : (
+          <UsersAdmin currentUser={user} />
+        )}
+      </main>
     </div>
   );
 }

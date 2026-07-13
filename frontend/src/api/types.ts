@@ -115,3 +115,36 @@ export interface CurrentUser {
   full_name: string;
   role: "dispatcher" | "clerk";
 }
+
+export interface ManagedUser extends CurrentUser {
+  is_active: boolean;
+}
+
+export type TripStatus = "planned" | "in_progress" | "completed" | "cancelled";
+
+export interface TripStop {
+  id: number;
+  sequence: number;
+  order_id: number;
+  customer_name: string;
+  address: string;
+  distance_from_prev_km: number | null;
+  delivered_at: string | null;
+}
+
+export interface TripAllocation {
+  compartment_position: number;
+  product_code: string;
+  quantity: number;
+  order_id: number;
+}
+
+export interface Trip {
+  id: number;
+  truck_code: string;
+  status: TripStatus;
+  created_at: string;
+  total_distance_km: number | null;
+  stops: TripStop[];
+  allocations: TripAllocation[];
+}

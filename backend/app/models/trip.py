@@ -43,6 +43,7 @@ class TripStop(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
     sequence: Mapped[int] = mapped_column()
     distance_from_prev_km: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     trip: Mapped["Trip"] = relationship(back_populates="stops")
     order: Mapped["Order"] = relationship()
