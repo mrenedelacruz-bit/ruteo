@@ -15,7 +15,8 @@ frontend/  App en React + TypeScript + Vite (toma de pedidos y panel de despacho
 
 ### Modelo de datos
 
-- **Product**: tipo de producto (FUEL_OIL, WOP, ...).
+- **Product**: tipo de producto (Fuel Oil, Diesel Regular, Diesel Premium,
+  Gasolina Regular, Gasolina Premium, ...).
 - **Truck / Compartment**: cada camión tiene N compartimientos, cada uno con
   su propia capacidad y (opcionalmente) un **producto dedicado** — evita
   mezclar productos distintos en el mismo tanque. Un compartimiento sin

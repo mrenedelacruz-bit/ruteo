@@ -40,7 +40,7 @@ def run() -> None:
         for t in FLEET:
             if db.scalar(select(Truck).where(Truck.code == t["code"])):
                 continue
-            product = products_by_code[t["product_code"]]
+            compartments = t["compartments"]
             truck = Truck(
                 code=t["code"],
                 chassis_brand=t["chassis_brand"],
@@ -52,12 +52,19 @@ def run() -> None:
                 status=TruckStatus(t["status"]),
                 notes=t["notes"],
                 compartments=[
-                    Compartment(position=i + 1, capacity=cap, product_id=product.id)
-                    for i, cap in enumerate(t["compartments"])
+                    Compartment(
+                        position=i + 1,
+                        capacity=c["capacity"],
+                        product_id=products_by_code[c["product_code"]].id
+                        if c["product_code"]
+                        else None,
+                    )
+                    for i, c in enumerate(compartments)
                 ],
             )
             db.add(truck)
-            print(f"+ camion {t['code']} ({sum(t['compartments'])} gal en {len(t['compartments'])} compartimientos)")
+            total = sum(c["capacity"] for c in compartments)
+            print(f"+ camion {t['code']} ({total} gal en {len(compartments)} compartimientos)")
 
         db.commit()
         print("Seed completado.")
