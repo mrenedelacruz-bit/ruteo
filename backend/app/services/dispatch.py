@@ -15,7 +15,20 @@ from app.models.trip import CompartmentAllocation, Trip, TripStop
 from app.models.truck import Truck, TruckStatus
 from app.schemas.dispatch import AllocationOut, DispatchResult, ShortfallOut, StopOut, TripOut
 from app.services.assignment import CompartmentSlot, Demand, TruckSlots, assign_orders_to_fleet
-from app.services.routing import Point, optimize_route
+from app.services.road_distance import build_osrm_distance_fn
+from app.services.routing import Point, RouteResult, haversine_km, optimize_route
+
+
+def _route_with_best_distances(depot: Point, stops: list[Point]) -> RouteResult:
+    """Rutea con distancias viales reales (OSRM) si el servicio esta
+    disponible; si no, cae a distancia geodesica (haversine)."""
+    osrm_fn = build_osrm_distance_fn([depot, *stops])
+    if osrm_fn is not None:
+        try:
+            return optimize_route(depot, stops, distance_fn=osrm_fn)
+        except ValueError:
+            pass  # algun par de puntos sin ruta vial; usar haversine
+    return optimize_route(depot, stops, distance_fn=haversine_km)
 
 
 def generate_dispatch(
@@ -82,7 +95,7 @@ def generate_dispatch(
             lat, lng = point_to_latlng(order.customer.location)
             stop_points.append(Point(id=oid, lat=lat, lng=lng))
 
-        route = optimize_route(depot_point, stop_points)
+        route = _route_with_best_distances(depot_point, stop_points)
 
         trip = Trip(truck_id=truck_id, depot_id=depot_id, total_distance_km=route.total_distance_km)
         db.add(trip)

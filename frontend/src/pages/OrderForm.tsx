@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { Customer, Product } from "../api/types";
+import type { Customer, GeocodeResult, Product } from "../api/types";
 
 interface OrderLineDraft {
   product_id: number | "";
@@ -24,6 +24,35 @@ export function OrderForm() {
     lng: "",
     phone: "",
   });
+  const [geoResults, setGeoResults] = useState<GeocodeResult[]>([]);
+  const [geoSearching, setGeoSearching] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  async function handleGeocodeSearch() {
+    if (newCustomer.address.trim().length < 3) {
+      setGeoError("Escribe la direccion antes de buscar.");
+      return;
+    }
+    setGeoSearching(true);
+    setGeoError(null);
+    setGeoResults([]);
+    try {
+      const results = await api.geocode(newCustomer.address);
+      if (results.length === 0) {
+        setGeoError("No se encontraron coincidencias; verifica la direccion o ingresa lat/lng manualmente.");
+      }
+      setGeoResults(results);
+    } catch {
+      setGeoError("Servicio de busqueda no disponible; ingresa lat/lng manualmente.");
+    } finally {
+      setGeoSearching(false);
+    }
+  }
+
+  function pickGeoResult(r: GeocodeResult) {
+    setNewCustomer((v) => ({ ...v, lat: String(r.lat), lng: String(r.lng) }));
+    setGeoResults([]);
+  }
 
   const loadCustomers = () => api.listCustomers().then(setCustomers).catch(() => {});
 
@@ -142,11 +171,28 @@ export function OrderForm() {
               value={newCustomer.name}
               onChange={(e) => setNewCustomer((v) => ({ ...v, name: e.target.value }))}
             />
-            <input
-              placeholder="Direccion"
-              value={newCustomer.address}
-              onChange={(e) => setNewCustomer((v) => ({ ...v, address: e.target.value }))}
-            />
+            <div className="row">
+              <input
+                placeholder="Direccion"
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer((v) => ({ ...v, address: e.target.value }))}
+              />
+              <button type="button" className="secondary" onClick={handleGeocodeSearch} disabled={geoSearching}>
+                {geoSearching ? "Buscando..." : "Buscar en mapa"}
+              </button>
+            </div>
+            {geoError && <p className="msg-error">{geoError}</p>}
+            {geoResults.length > 0 && (
+              <ul className="geo-results">
+                {geoResults.map((r, i) => (
+                  <li key={i}>
+                    <button type="button" className="secondary" onClick={() => pickGeoResult(r)}>
+                      {r.display_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="row">
               <input
                 placeholder="Latitud"

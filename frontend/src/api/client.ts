@@ -2,6 +2,7 @@ import type {
   Customer,
   DispatchResult,
   Depot,
+  GeocodeResult,
   Order,
   Product,
   Truck,
@@ -36,6 +37,8 @@ export const api = {
     notes?: string | null;
     lines: { product_id: number; quantity: number }[];
   }) => request<Order>("/orders", { method: "POST", body: JSON.stringify(payload) }),
+  geocode: (q: string) =>
+    request<GeocodeResult[]>(`/geocode?q=${encodeURIComponent(q)}`),
   generateDispatch: (depot_id: number, order_ids?: number[]) =>
     request<DispatchResult>("/dispatch/generate", {
       method: "POST",

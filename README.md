@@ -46,11 +46,28 @@ Bin-packing *first-fit-decreasing* con las siguientes reglas de negocio:
 
 ### Motor de ruteo (`app/services/routing.py`)
 
-Heurística clásica de TSP (vecino más cercano + mejora 2-opt) sobre
-distancias geodésicas (haversine). La función de distancia es inyectable —
-en el futuro se puede sustituir por distancias de red vial real vía un motor
-externo (OSRM, Google Directions, etc.) sin tocar el algoritmo de
-optimización.
+Heurística clásica de TSP (vecino más cercano + mejora 2-opt). La función de
+distancia es inyectable:
+
+- **Distancias viales reales** vía OSRM (`app/services/road_distance.py`):
+  una sola llamada al servicio `/table` por viaje obtiene la matriz de
+  distancias por carretera entre el depósito y todas las paradas. Se
+  configura con `OSRM_BASE_URL` (por defecto el servidor público de demo;
+  para producción montar una instancia propia con mapas de RD).
+- **Fallback automático a haversine** (línea recta): si OSRM no está
+  configurado, no responde, o no encuentra ruta entre dos puntos, el
+  despacho se genera igual con distancias geodésicas y queda un aviso en el
+  log — nunca falla por culpa del servicio externo.
+
+### Geocodificación de direcciones (`app/services/geocoding.py`)
+
+`GET /geocode?q=<dirección>` busca direcciones vía Nominatim
+(OpenStreetMap), limitado a República Dominicana (`GEOCODE_COUNTRY_CODES`).
+En el formulario de alta de cliente, el botón **"Buscar en mapa"** consulta
+este endpoint y llena lat/lng automáticamente al elegir un resultado; si el
+servicio no está disponible se pueden seguir ingresando las coordenadas a
+mano. Configurar un `GEOCODE_USER_AGENT` propio según la política de uso de
+Nominatim.
 
 ### Flujo de despacho (`POST /dispatch/generate`)
 
@@ -128,10 +145,8 @@ Dos vistas:
 
 ## Próximos pasos sugeridos
 
-- Sustituir las distancias haversine por distancias de red vial real
-  (integrar OSRM u otro motor de ruteo) para ETAs más precisos.
 - Autenticación/roles (cliente que pide vs. despachador que asigna).
 - Estados de viaje en tiempo real (en curso, completado) y confirmación de
   entrega con geolocalización del camión.
-- Geocodificación de direcciones desde la UI (reusar `geocode.ts` del
-  repositorio `Geodata`) en vez de pedir lat/lng manualmente.
+- Instancia propia de OSRM con mapas de República Dominicana (el servidor
+  público de demo no tiene garantías de disponibilidad).

@@ -9,6 +9,15 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://ruteo:ruteo@localhost:5432/ruteo"
     default_capacity_unit: str = "gal"
 
+    # Geocodificacion de direcciones (Nominatim/OpenStreetMap)
+    nominatim_base_url: str = "https://nominatim.openstreetmap.org"
+    geocode_user_agent: str = "ruteo-app"
+    # Limitar resultados a Republica Dominicana
+    geocode_country_codes: str = "do"
+
+    # Motor de distancias viales (OSRM). Vacio = usar distancia haversine.
+    osrm_base_url: str = "https://router.project-osrm.org"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -102,3 +102,9 @@ export interface DispatchResult {
   unassigned_order_ids: number[];
   shortfalls: ShortfallOut[];
 }
+
+export interface GeocodeResult {
+  display_name: string;
+  lat: number;
+  lng: number;
+}
