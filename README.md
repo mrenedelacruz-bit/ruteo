@@ -174,13 +174,43 @@ echo "VITE_API_URL=http://localhost:8000" > .env.local
 npm run dev
 ```
 
-Dos vistas:
+Cuatro vistas (las últimas tres solo visibles para el rol despachador):
 
-- **Tomar pedido**: alta de clientes nuevos (con coordenadas) y creación de
-  pedidos (producto + cantidad, múltiples líneas por pedido).
+- **Tomar pedido**: alta de clientes nuevos (con búsqueda de dirección) y
+  creación de pedidos (producto + cantidad, múltiples líneas por pedido).
 - **Despacho**: lista de pedidos pendientes, botón para generar el
   despacho (asignación de flota + ruteo), y visualización en mapa
   (Leaflet/OpenStreetMap) de las rutas resultantes por camión.
+- **Viajes**: iniciar un viaje, confirmar la entrega de cada parada,
+  cancelar, con filtro por estado.
+- **Usuarios**: crear usuarios, cambiar rol, activar/desactivar, resetear
+  clave.
+
+## Despliegue de demo (URL pública)
+
+El repo incluye un `Dockerfile` (compila el frontend y lo sirve desde el
+mismo servicio FastAPI — un solo origen, sin configurar CORS ni URLs
+cruzadas) y un `render.yaml` para desplegar en [Render](https://render.com)
+con un clic, usando tu propia cuenta — no hace falta compartir ninguna
+credencial:
+
+1. Entra a este enlace (ajusta la rama si ya se fusionó a `main`):
+   `https://render.com/deploy?repo=https://github.com/mrenedelacruz-bit/ruteo/tree/claude/fuel-delivery-orders-3b2b7d`
+2. Render detecta `render.yaml` y muestra el plan: una base de datos
+   Postgres y un servicio web, ambos en el plan gratuito.
+3. Te pedirá el valor de **`ADMIN_PASSWORD`** (el único campo manual) —
+   pon una clave segura, será la del usuario `admin` inicial.
+4. Click en "Apply" / "Deploy Blueprint". La primera build tarda varios
+   minutos (compila el frontend, instala el backend, aplica migraciones —
+   incluyendo `CREATE EXTENSION postgis` automático — y carga la flota).
+5. Cuando el servicio quede "Live", entra a la URL que te da Render
+   (`https://ruteo-demo-XXXX.onrender.com`) e inicia sesión con
+   `admin` / la clave que pusiste.
+
+Notas del plan gratuito de Render: el servicio "duerme" tras 15 minutos
+sin tráfico (la primera petición después tarda ~30-60s en responder) y la
+base de datos gratuita expira a los 30 días — para una demo puntual es
+suficiente; para algo permanente conviene pasar a un plan pago.
 
 ## Próximos pasos sugeridos
 

@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.deps import get_current_user, require_dispatcher
 from app.api.routes import (
@@ -45,3 +48,13 @@ app.include_router(users.router, dependencies=_dispatcher_only)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Sirve el frontend compilado (frontend/dist, copiado a ./static en la
+# imagen Docker) en el mismo origen que la API. Se monta al final para que
+# las rutas de la API de arriba tengan prioridad. La app no usa rutas del
+# navegador (las pestañas son estado en memoria), asi que basta con servir
+# "/" e index.html; no hace falta un fallback SPA para sub-rutas.
+_static_dir = Path(__file__).resolve().parent.parent / "static"
+if _static_dir.is_dir():
+    app.mount("/", StaticFiles(directory=_static_dir, html=True), name="frontend")

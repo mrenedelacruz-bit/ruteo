@@ -11,7 +11,10 @@ import type {
   Truck,
 } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// "" = mismo origen (backend sirviendo el frontend compilado, p.ej. en
+// produccion). En desarrollo local con `npm run dev`, .env.local define
+// VITE_API_URL apuntando al backend en otro puerto.
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 const TOKEN_KEY = "ruteo_token";
 
 export function getToken(): string | null {

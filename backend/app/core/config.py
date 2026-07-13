@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -8,6 +9,18 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://ruteo:ruteo@localhost:5432/ruteo"
     default_capacity_unit: str = "gal"
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg_driver(cls, v: str) -> str:
+        # Proveedores de hosting (Render, Heroku, etc.) entregan URLs
+        # postgres://... o postgresql://... sin el driver; SQLAlchemy con
+        # psycopg3 necesita el sufijo +psycopg explicito.
+        if v.startswith("postgres://"):
+            return "postgresql+psycopg://" + v[len("postgres://"):]
+        if v.startswith("postgresql://"):
+            return "postgresql+psycopg://" + v[len("postgresql://"):]
+        return v
 
     # Geocodificacion de direcciones (Nominatim/OpenStreetMap)
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
