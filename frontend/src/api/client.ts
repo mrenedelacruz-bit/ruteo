@@ -1,4 +1,5 @@
 import type {
+  CurrentUser,
   Customer,
   DispatchResult,
   Depot,
@@ -9,12 +10,32 @@ import type {
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const TOKEN_KEY = "ruteo_token";
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string | null) {
+  if (token === null) localStorage.removeItem(TOKEN_KEY);
+  else localStorage.setItem(TOKEN_KEY, token);
+}
+
+export class UnauthorizedError extends Error {}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...init,
   });
+  if (res.status === 401) {
+    setToken(null);
+    throw new UnauthorizedError("sesion expirada");
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
@@ -23,6 +44,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: async (username: string, password: string) => {
+    const res = await request<{ access_token: string }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    setToken(res.access_token);
+    return res;
+  },
+  me: () => request<CurrentUser>("/auth/me"),
+  logout: () => setToken(null),
   listProducts: () => request<Product[]>("/products"),
   listTrucks: () => request<Truck[]>("/trucks"),
   listCustomers: () => request<Customer[]>("/customers"),

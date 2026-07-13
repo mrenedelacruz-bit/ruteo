@@ -4,6 +4,7 @@ from app.models.order import Order, OrderLine, OrderStatus
 from app.models.product import Product
 from app.models.trip import CompartmentAllocation, Trip, TripStatus, TripStop
 from app.models.truck import Compartment, Truck, TruckStatus
+from app.models.user import User, UserRole
 
 __all__ = [
     "Customer",
@@ -19,4 +20,6 @@ __all__ = [
     "Compartment",
     "Truck",
     "TruckStatus",
+    "User",
+    "UserRole",
 ]

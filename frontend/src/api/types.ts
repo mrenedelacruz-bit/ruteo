@@ -108,3 +108,10 @@ export interface GeocodeResult {
   lat: number;
   lng: number;
 }
+
+export interface CurrentUser {
+  id: number;
+  username: string;
+  full_name: string;
+  role: "dispatcher" | "clerk";
+}

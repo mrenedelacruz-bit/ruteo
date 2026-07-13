@@ -21,8 +21,23 @@
   gap: 0.5rem;
 }
 
+.app-header nav {
+  align-items: center;
+}
+
 .app-header nav button.active {
   background: var(--accent-hover);
+}
+
+.user-badge {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0 0.5rem;
+}
+
+.login-panel {
+  max-width: 380px;
+  margin: 3rem auto;
 }
 
 .panel {

@@ -93,6 +93,21 @@ tocar el código de la aplicación, sólo estos datos (o usar el endpoint
 Las coordenadas de REFIDOMSA en `fleet_data.py` son aproximadas — deben
 ajustarse con la ubicación GPS exacta de la planta.
 
+## Autenticación y roles
+
+La API usa JWT (header `Authorization: Bearer <token>`). Dos roles:
+
+- **dispatcher** (despachador): todo — gestiona la flota y genera despachos.
+- **clerk** (vendedor): toma pedidos y da de alta clientes; no ve el panel
+  de despacho.
+
+`POST /auth/login` con `{username, password}` devuelve el token;
+`GET /auth/me` devuelve el usuario actual. El seed
+`python -m app.seed.seed_users` crea el despachador inicial — pasar
+`ADMIN_USERNAME`/`ADMIN_PASSWORD` por variables de entorno (si no, usa
+`admin`/`admin123` y avisa que hay que cambiarla). En producción configurar
+también `JWT_SECRET` con un secreto propio.
+
 ## Backend — desarrollo local
 
 Requiere PostgreSQL con la extensión PostGIS.
@@ -110,6 +125,7 @@ psql -d ruteo -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 alembic upgrade head
 python -m app.seed.seed_fleet   # carga productos, depósito REFIDOMSA y la flota
+ADMIN_PASSWORD=<clave-segura> python -m app.seed.seed_users   # usuario despachador inicial
 
 uvicorn app.main:app --reload --port 8000
 ```
@@ -145,7 +161,8 @@ Dos vistas:
 
 ## Próximos pasos sugeridos
 
-- Autenticación/roles (cliente que pide vs. despachador que asigna).
+- Gestión de usuarios desde la UI (hoy se crean por seed o directamente en
+  la base de datos).
 - Estados de viaje en tiempo real (en curso, completado) y confirmación de
   entrega con geolocalización del camión.
 - Instancia propia de OSRM con mapas de República Dominicana (el servidor

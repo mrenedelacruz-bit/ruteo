@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Motor de distancias viales (OSRM). Vacio = usar distancia haversine.
     osrm_base_url: str = "https://router.project-osrm.org"
 
+    # Autenticacion JWT. OBLIGATORIO cambiar el secreto en produccion.
+    jwt_secret: str = "cambiar-este-secreto-en-produccion"
+    jwt_expire_minutes: int = 480
+
 
 @lru_cache
 def get_settings() -> Settings:
