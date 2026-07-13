@@ -1,0 +1,60 @@
+:root {
+  --text: #1f2430;
+  --bg: #f6f7f9;
+  --panel-bg: #ffffff;
+  --border: #dfe3e8;
+  --accent: #1d4ed8;
+  --accent-hover: #1739a6;
+  --error: #b91c1c;
+  --ok: #15803d;
+  font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: white;
+  color: var(--accent);
+}
+
+button.secondary:hover {
+  background: #eef2ff;
+}
+
+input,
+select,
+textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
