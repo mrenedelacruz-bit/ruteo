@@ -30,20 +30,34 @@ frontend/  App en React + TypeScript + Vite (toma de pedidos y panel de despacho
 
 ### Motor de asignación de flota (`app/services/assignment.py`)
 
-Bin-packing *first-fit-decreasing* con las siguientes reglas de negocio:
+Bin-packing con **llenado exacto**, reflejando cómo opera la empresa:
 
-- Un compartimiento con producto dedicado sólo acepta ese producto.
-- Una vez que un compartimiento recibe carga en un viaje, no se reutiliza
-  para otro pedido en el mismo viaje (se asume descarga total en la parada
-  del cliente — evita mezclar combustible de dos clientes en el mismo
-  tanque).
-- Si una línea de pedido excede la capacidad de cualquier compartimiento
-  disponible, se divide entre varios compartimientos (incluso de distintos
-  camiones).
-- Se prefiere consolidar pedidos en camiones ya usados en la misma corrida
-  de despacho, para minimizar la cantidad de camiones necesarios.
-- Si la flota activa no tiene capacidad suficiente, el pedido (o el
-  remanente) se reporta como *shortfall* en vez de fallar silenciosamente.
+- **Un camión solo sale completo**: todos sus compartimientos deben quedar
+  llenos exactamente a su capacidad, o el camión no se despacha en esa
+  corrida — sus pedidos quedan `pending` para la próxima corrida, cuando
+  haya más demanda acumulada. No se envían camiones a medio cargar.
+- Un compartimiento con producto dedicado sólo acepta ese producto. Uno
+  **flexible** (p. ej. los del camión "WOP") admite cualquiera de varios
+  productos, pero nunca mezcla dos productos distintos en el mismo
+  compartimiento — la elección de qué producto lleva puede variar de un
+  viaje a otro.
+- Una línea de pedido es divisible: su cantidad puede repartirse entre
+  varios compartimientos o camiones, y un compartimiento puede llenarse
+  combinando varias líneas del mismo producto (incluso de pedidos o
+  clientes distintos) hasta completar exactamente su capacidad.
+- El pedido de un cliente con varios combustibles se intenta consolidar
+  en un solo camión (una línea por compartimiento); si no cabe completo,
+  se reparte entre varios camiones.
+- Heurística: los camiones se procesan de menor a mayor capacidad total
+  (los más chicos necesitan menos demanda acumulada para completarse).
+  Encontrar el máximo global de camiones despachables en una corrida es
+  NP-difícil en general; esto es determinista y razonable para los
+  volúmenes típicos de la operación, pero no garantiza el óptimo.
+- *Shortfall* ya no significa "falta de capacidad temporal" (eso es
+  simplemente un pedido pendiente, visible en `unassigned_order_ids`):
+  ahora significa que ningún camión activo de la flota — ni dedicado ni
+  flexible — podría transportar ese producto nunca, sin importar cuánta
+  demanda se acumule.
 
 ### Motor de ruteo (`app/services/routing.py`)
 

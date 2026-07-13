@@ -2,6 +2,7 @@ from app.services.assignment import CompartmentSlot, Demand, TruckSlots, assign_
 
 FUEL_OIL = 1
 DIESEL = 2
+GASOLINA = 3
 
 
 def truck(truck_id, code, compartments):
@@ -16,91 +17,178 @@ def truck(truck_id, code, compartments):
     )
 
 
-def test_single_order_fits_in_one_compartment():
-    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=4000)]
-    trucks = [truck(1, "T-01", [(5000, FUEL_OIL)])]
+def test_truck_only_dispatches_when_every_compartment_is_exactly_full():
+    # el pedido no alcanza para llenar ninguno de los dos compartimientos
+    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=2000)]
+    trucks = [truck(1, "T-01", [(3000, FUEL_OIL), (2000, FUEL_OIL)])]
 
     result = assign_orders_to_fleet(demands, trucks)
 
-    assert len(result.allocations) == 1
-    assert result.allocations[0].compartment_id == 101
-    assert result.allocations[0].quantity == 4000
-    assert not result.shortfalls
+    assert result.allocations == []  # el camion no sale incompleto
+    assert not result.shortfalls  # no es un shortfall real, solo falta volumen
 
 
-def test_demand_larger_than_any_compartment_is_split():
-    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=7500)]
-    trucks = [truck(1, "T-05", [(5100, FUEL_OIL), (6900, FUEL_OIL)])]
-
-    result = assign_orders_to_fleet(demands, trucks)
-
-    assert not result.shortfalls
-    assert len(result.allocations) == 2
-    assert sum(a.quantity for a in result.allocations) == 7500
-    # el compartimiento mas grande se usa primero para minimizar el numero de fracciones
-    assert {a.compartment_id for a in result.allocations} == {101, 102}
-
-
-def test_a_used_compartment_is_never_split_between_two_different_orders():
-    """Un compartimiento nunca debe mezclar producto de dos pedidos distintos,
-    aunque le quede espacio libre despues de servir al primer pedido."""
-    demands = [
-        Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=7500),
-        Demand(order_id=2, order_line_id=2, product_id=FUEL_OIL, quantity=3000),
-    ]
-    trucks = [truck(1, "T-05", [(5100, FUEL_OIL), (6900, FUEL_OIL)])]
-
-    result = assign_orders_to_fleet(demands, trucks)
-
-    order2_allocs = [a for a in result.allocations if a.order_id == 2]
-    order1_compartments = {a.compartment_id for a in result.allocations if a.order_id == 1}
-    order2_compartments = {a.compartment_id for a in order2_allocs}
-    assert order1_compartments.isdisjoint(order2_compartments)
-    # T-05 ya no tiene espacio (5100+6900=12000 == 7500+... no cabe el pedido 2 completo)
-    assert result.shortfalls, "el pedido 2 no debe caber en el mismo camion ya usado"
-
-
-def test_consolidates_multiple_orders_onto_one_truck_when_capacity_allows():
+def test_truck_dispatches_once_demand_exactly_covers_every_compartment():
     demands = [
         Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=3000),
         Demand(order_id=2, order_line_id=2, product_id=FUEL_OIL, quantity=2000),
     ]
+    trucks = [truck(1, "T-01", [(3000, FUEL_OIL), (2000, FUEL_OIL)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert len(result.allocations) == 2
+    assert sum(a.quantity for a in result.allocations) == 5000
+    assert {a.compartment_position for a in result.allocations} == {1, 2}
+
+
+def test_single_line_can_be_split_across_two_compartments_to_complete_the_truck():
+    # una sola linea de 5000 llena exactamente los dos compartimientos (3000+2000)
+    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=5000)]
+    trucks = [truck(1, "T-01", [(3000, FUEL_OIL), (2000, FUEL_OIL)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert len(result.allocations) == 2
+    assert sum(a.quantity for a in result.allocations) == 5000
+    assert all(a.order_line_id == 1 for a in result.allocations)
+
+
+def test_multiple_orders_combine_to_fill_one_compartment_exactly():
+    # ningun pedido solo llena el compartimiento de 3000, pero juntos si
+    demands = [
+        Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=1000),
+        Demand(order_id=2, order_line_id=2, product_id=FUEL_OIL, quantity=1500),
+        Demand(order_id=3, order_line_id=3, product_id=FUEL_OIL, quantity=500),
+    ]
+    trucks = [truck(1, "T-01", [(3000, FUEL_OIL)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert len(result.allocations) == 3
+    assert sum(a.quantity for a in result.allocations) == 3000
+
+
+def test_multi_product_order_consolidates_onto_one_truck():
+    """El pedido de un cliente con dos combustibles debe preferir un solo
+    camion (una linea por compartimiento) en vez de repartirse."""
+    demands = [
+        Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=2000),
+        Demand(order_id=1, order_line_id=2, product_id=GASOLINA, quantity=1000),
+    ]
     trucks = [
-        truck(1, "T-A", [(3000, FUEL_OIL), (2000, FUEL_OIL)]),
-        truck(2, "T-B", [(3000, FUEL_OIL), (2000, FUEL_OIL)]),
+        truck(1, "T-A", [(2000, DIESEL), (1000, GASOLINA)]),
+        truck(2, "T-B", [(2000, DIESEL), (1000, GASOLINA)]),
     ]
 
     result = assign_orders_to_fleet(demands, trucks)
 
-    assert {a.truck_id for a in result.allocations} == {1}
-    assert not result.shortfalls
+    assert len(result.allocations) == 2
+    assert len({a.truck_id for a in result.allocations}) == 1
 
 
-def test_dedicated_compartment_only_accepts_its_own_product():
-    demands = [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
-    trucks = [truck(1, "T-01", [(5000, FUEL_OIL)])]
+def test_multi_product_order_splits_across_trucks_when_it_does_not_fit_in_one():
+    demands = [
+        Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=2000),
+        Demand(order_id=1, order_line_id=2, product_id=GASOLINA, quantity=1000),
+    ]
+    trucks = [
+        truck(1, "T-diesel", [(2000, DIESEL)]),
+        truck(2, "T-gasolina", [(1000, GASOLINA)]),
+    ]
 
     result = assign_orders_to_fleet(demands, trucks)
 
-    assert not result.allocations
-    assert result.shortfalls == [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
+    assert len(result.allocations) == 2
+    assert {a.truck_id for a in result.allocations} == {1, 2}
 
 
-def test_flexible_compartment_accepts_any_product():
-    demands = [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
-    trucks = [truck(1, "T-01", [(5000, None)])]
+def test_flexible_compartment_can_take_any_product_and_choice_can_vary():
+    demands = [Demand(order_id=1, order_line_id=1, product_id=GASOLINA, quantity=1000)]
+    trucks = [truck(1, "T-WOP", [(1000, None)])]
 
     result = assign_orders_to_fleet(demands, trucks)
 
     assert len(result.allocations) == 1
-    assert not result.shortfalls
+    assert result.allocations[0].product_id == GASOLINA
 
 
-def test_shortfall_when_total_fleet_capacity_is_insufficient():
-    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=20000)]
-    trucks = [truck(1, "T-01", [(5000, FUEL_OIL)])]
+def test_flexible_compartment_never_mixes_two_different_products():
+    """Un compartimiento flexible debe llenarse con un UNICO producto,
+    aunque combinar dos productos distintos tambien sumara exacto."""
+    demands = [
+        Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1500),
+        Demand(order_id=2, order_line_id=2, product_id=GASOLINA, quantity=1500),
+    ]
+    trucks = [truck(1, "T-WOP", [(3000, None)])]
 
     result = assign_orders_to_fleet(demands, trucks)
 
-    assert sum(a.quantity for a in result.allocations) == 5000
-    assert sum(s.quantity for s in result.shortfalls) == 15000
+    # ningun producto solo llega a 3000, asi que el camion no se completa
+    assert result.allocations == []
+
+
+def test_flexible_compartment_picks_a_single_product_that_exactly_fits():
+    demands = [
+        Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000),
+        Demand(order_id=2, order_line_id=2, product_id=DIESEL, quantity=2000),
+        Demand(order_id=3, order_line_id=3, product_id=GASOLINA, quantity=500),
+    ]
+    trucks = [truck(1, "T-WOP", [(3000, None)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert len(result.allocations) == 2
+    assert {a.product_id for a in result.allocations} == {DIESEL}
+    assert sum(a.quantity for a in result.allocations) == 3000
+
+
+def test_dedicated_compartments_are_filled_before_flexible_ones():
+    """Un compartimiento flexible no debe 'robarse' demanda que un
+    compartimiento dedicado del mismo camion tambien necesita."""
+    demands = [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
+    trucks = [truck(1, "T-01", [(1000, None), (1000, DIESEL)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    # solo hay demanda para un compartimiento; el camion no se completa
+    assert result.allocations == []
+
+
+def test_shortfall_when_no_active_compartment_can_ever_carry_the_product():
+    """Sin compartimientos dedicados a ese producto ni ninguno flexible en
+    toda la flota activa, nunca se podra transportar: es un shortfall
+    real, no un pedido pendiente por volumen."""
+    demands = [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
+    trucks = [truck(1, "T-01", [(1000, FUEL_OIL)]), truck(2, "T-02", [(2000, FUEL_OIL)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert result.allocations == []
+    assert result.shortfalls == [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
+
+
+def test_no_shortfall_when_any_truck_has_a_flexible_compartment():
+    demands = [Demand(order_id=1, order_line_id=1, product_id=DIESEL, quantity=1000)]
+    trucks = [truck(1, "T-01", [(1000, FUEL_OIL)]), truck(2, "T-WOP", [(5000, None)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert not result.shortfalls  # el camion flexible en principio podria cargarlo (aunque hoy no se complete)
+
+
+def test_smaller_trucks_are_completed_first():
+    demands = [
+        Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=2000),
+        Demand(order_id=2, order_line_id=2, product_id=FUEL_OIL, quantity=8000),
+    ]
+    trucks = [
+        truck(1, "T-grande", [(10000, FUEL_OIL)]),
+        truck(2, "T-chico", [(2000, FUEL_OIL)]),
+    ]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    # el camion chico se completa con el pedido 1; no queda demanda para
+    # completar el grande (8000 < 10000), asi que ese se queda pendiente
+    assert {a.truck_id for a in result.allocations} == {2}

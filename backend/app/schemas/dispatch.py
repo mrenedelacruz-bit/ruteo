@@ -33,6 +33,11 @@ class TripOut(BaseModel):
 
 
 class ShortfallOut(BaseModel):
+    """Producto que ningun camion activo de la flota puede transportar
+    (ni dedicado ni flexible) — a diferencia de un pedido en
+    `unassigned_order_ids` (simplemente esperando a que se complete un
+    camion), esto no se resuelve con mas pedidos."""
+
     order_id: int
     order_line_id: int
     product_code: str
@@ -41,5 +46,7 @@ class ShortfallOut(BaseModel):
 
 class DispatchResult(BaseModel):
     trips: list[TripOut]
+    # pedidos que no salieron en esta corrida porque ningun camion pudo
+    # completarse a capacidad todavia (quedan pendientes para la proxima)
     unassigned_order_ids: list[int]
     shortfalls: list[ShortfallOut]
