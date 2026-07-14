@@ -145,7 +145,12 @@ fecha en que se colocó).
   completarse. Es una vista de solo lectura (no genera ningún despacho)
   que usa la misma lógica y el mismo orden que un despacho real, así que
   un camión que aparece "Listo para despachar" aquí es exactamente el que
-  saldría en el próximo `POST /dispatch/generate`.
+  saldría en el próximo `POST /dispatch/generate`. Un camión con un viaje
+  ya planificado o en curso aparece como **"En viaje"** con su carga real
+  (la de ese viaje) — no vuelve a ofrecerse para una nueva asignación
+  hasta que ese viaje se complete o se cancele (ver "Ciclo de vida del
+  viaje" más arriba); esta misma regla aplica al despacho real, para que
+  un camión nunca quede comprometido con dos viajes a la vez.
 
 ## Datos de la flota
 

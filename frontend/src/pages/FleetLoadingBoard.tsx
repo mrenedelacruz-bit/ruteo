@@ -40,10 +40,20 @@ export function FleetLoadingBoard() {
             <h4>
               Camion {t.truck_code} — {t.total_capacity} gal
             </h4>
-            <span className={`status ${t.ready_to_dispatch ? "status-completed" : "status-in_progress"}`}>
-              {t.ready_to_dispatch ? "Listo para despachar" : "Incompleto"}
+            <span
+              className={`status ${
+                t.on_active_trip ? "status-planned" : t.ready_to_dispatch ? "status-completed" : "status-in_progress"
+              }`}
+            >
+              {t.on_active_trip ? "En viaje (ver pestaña Viajes)" : t.ready_to_dispatch ? "Listo para despachar" : "Incompleto"}
             </span>
           </div>
+          {t.on_active_trip && (
+            <p className="muted">
+              Ya tiene un viaje planificado o en curso; sus compartimientos estan comprometidos con
+              ese viaje y no participan en la demanda pendiente de hoy.
+            </p>
+          )}
           <table>
             <thead>
               <tr>

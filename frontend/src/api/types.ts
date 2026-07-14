@@ -165,5 +165,6 @@ export interface TruckLoad {
   truck_code: string;
   total_capacity: number;
   ready_to_dispatch: boolean;
+  on_active_trip: boolean; // ya tiene un viaje planificado/en curso (ver pestana Viajes)
   compartments: CompartmentLoad[];
 }

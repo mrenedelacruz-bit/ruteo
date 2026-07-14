@@ -69,4 +69,8 @@ class TruckLoadOut(BaseModel):
     truck_code: str
     total_capacity: float
     ready_to_dispatch: bool
+    # True si el camion ya tiene un viaje planificado o en curso: sus
+    # compartimientos estan comprometidos con ESE viaje (ver pestaña
+    # Viajes), no participa en la vista previa de demanda pendiente.
+    on_active_trip: bool
     compartments: list[CompartmentLoadOut]

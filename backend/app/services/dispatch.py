@@ -12,7 +12,7 @@ from app.core.geo import point_to_latlng
 from app.models.depot import Depot
 from app.models.order import Order, OrderLine, OrderStatus
 from app.models.product import Product
-from app.models.trip import CompartmentAllocation, Trip, TripStop
+from app.models.trip import CompartmentAllocation, Trip, TripStatus, TripStop
 from app.models.truck import Truck, TruckStatus
 from app.schemas.dispatch import (
     AllocationOut,
@@ -68,8 +68,15 @@ def _load_pending_demand_and_active_fleet(
     ]
     line_product_code = {line.id: line.product.code for o in orders for line in o.lines}
 
+    # Un camion con un viaje planificado o en curso ya tiene sus
+    # compartimientos comprometidos con ese viaje: no debe recibir una
+    # segunda asignacion hasta que ese viaje se complete o se cancele.
+    busy_truck_ids = select(Trip.truck_id).where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+
     trucks = db.scalars(
-        select(Truck).options(selectinload(Truck.compartments)).where(Truck.status == TruckStatus.active)
+        select(Truck)
+        .options(selectinload(Truck.compartments))
+        .where(Truck.status == TruckStatus.active, Truck.id.not_in(busy_truck_ids))
     ).all()
     truck_slots = [
         TruckSlots(
@@ -190,19 +197,25 @@ def generate_dispatch(
 
 
 def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
-    """Vista de solo lectura (no persiste nada): para cada camion activo,
-    como van llenandose sus compartimientos con la demanda pendiente
-    actual, y cuanto le falta al que no esta listo."""
+    """Vista de solo lectura (no persiste nada). Dos grupos de camiones:
+    - Con un viaje planificado/en curso: se muestra su carga REAL (ya
+      comprometida con ese viaje, ver pestaña Viajes) — no participan en
+      la vista previa de demanda pendiente (ver `_load_pending_demand_and_active_fleet`).
+    - El resto: vista previa de como van llenandose sus compartimientos
+      con la demanda pendiente actual, y cuanto le falta al que no esta
+      listo.
+    """
     _, demands, truck_slots, _ = _load_pending_demand_and_active_fleet(db)
     product_code_by_id = dict(db.execute(select(Product.id, Product.code)).all())
 
     statuses = fleet_loading_status(demands, truck_slots)
 
-    return [
+    results = [
         TruckLoadOut(
             truck_code=t.truck_code,
             total_capacity=t.total_capacity,
             ready_to_dispatch=t.ready_to_dispatch,
+            on_active_trip=False,
             compartments=[
                 CompartmentLoadOut(
                     compartment_id=c.compartment.compartment_id,
@@ -223,3 +236,48 @@ def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
         )
         for t in statuses
     ]
+
+    busy_trucks = db.scalars(
+        select(Truck)
+        .options(selectinload(Truck.compartments))
+        .join(Trip, Trip.truck_id == Truck.id)
+        .where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+    ).all()
+    if busy_trucks:
+        allocations = db.scalars(
+            select(CompartmentAllocation)
+            .join(Trip, Trip.id == CompartmentAllocation.trip_id)
+            .options(selectinload(CompartmentAllocation.order_line).selectinload(OrderLine.product))
+            .where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+        ).all()
+        alloc_by_compartment = {a.compartment_id: a for a in allocations}
+
+        for truck in busy_trucks:
+            compartments = []
+            for c in truck.compartments:
+                a = alloc_by_compartment.get(c.id)
+                compartments.append(
+                    CompartmentLoadOut(
+                        compartment_id=c.id,
+                        position=c.position,
+                        capacity=float(c.capacity),
+                        dedicated_product_code=product_code_by_id.get(c.product_id)
+                        if c.product_id is not None
+                        else None,
+                        filled=a is not None,
+                        product_code=a.order_line.product.code if a is not None else None,
+                        quantity_available=float(a.quantity) if a is not None else 0.0,
+                        quantity_missing=0.0 if a is not None else float(c.capacity),
+                    )
+                )
+            results.append(
+                TruckLoadOut(
+                    truck_code=truck.code,
+                    total_capacity=float(truck.total_capacity),
+                    ready_to_dispatch=False,
+                    on_active_trip=True,
+                    compartments=compartments,
+                )
+            )
+
+    return results
