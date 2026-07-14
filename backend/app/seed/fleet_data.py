@@ -155,10 +155,9 @@ FLEET: list[dict] = [
     {
         # Camion WOP ("white oil products"): transporta Diesel Regular,
         # Diesel Premium, Gasolina Regular y Gasolina Premium en vez de
-        # Fuel Oil. Falta confirmar que compartimiento especifico
-        # corresponde a cada producto, asi que por ahora los 4 quedan
-        # flexibles (product_code=None) y el motor de asignacion elige
-        # cualquiera segun lo que pida el pedido.
+        # Fuel Oil. Sus 4 compartimientos son intencionalmente flexibles
+        # (product_code=None): cualquiera puede llevar cualquiera de los
+        # 4 productos, y esa asignacion puede cambiar en cada viaje.
         "code": "T-10",
         "chassis_brand": "FREIGHTLINER COLUMBIA",
         "chassis_year": 2016,
@@ -172,11 +171,12 @@ FLEET: list[dict] = [
             {"capacity": 2_000, "product_code": None},
         ],
         "status": "active",
-        "notes": "Camion WOP (diesel/gasolina); falta definir que compartimiento corresponde a cada producto",
+        "notes": "Camion WOP (diesel/gasolina); compartimientos flexibles, cualquiera admite cualquiera de los 4 productos",
     },
     {
-        # Camion WOP adicional, misma distribucion de compartimientos que
-        # T-10. Marca/año de chasis y tanque pendientes de confirmar.
+        # Camion WOP adicional, misma distribucion de compartimientos y
+        # flexibilidad que T-10. Marca/año de chasis y tanque pendientes
+        # de confirmar.
         "code": "T-50",
         "chassis_brand": "N/D",
         "chassis_year": None,
@@ -190,7 +190,7 @@ FLEET: list[dict] = [
             {"capacity": 2_000, "product_code": None},
         ],
         "status": "active",
-        "notes": "Camion WOP (diesel/gasolina); faltan datos de chasis/tanque y definir que compartimiento corresponde a cada producto",
+        "notes": "Camion WOP (diesel/gasolina); compartimientos flexibles; faltan datos de chasis/tanque",
     },
 ]
 
