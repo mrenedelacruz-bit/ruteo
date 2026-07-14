@@ -197,7 +197,8 @@ createdb ruteo
 psql -d ruteo -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 alembic upgrade head
-python -m app.seed.seed_fleet   # carga productos, depósito REFIDOMSA y la flota
+python -m app.seed.seed_fleet       # carga productos, depósito REFIDOMSA y la flota
+python -m app.seed.seed_customers   # clientes reales conocidos
 ADMIN_PASSWORD=<clave-segura> python -m app.seed.seed_users   # usuario despachador inicial
 
 uvicorn app.main:app --reload --port 8000
