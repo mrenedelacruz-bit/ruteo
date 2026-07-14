@@ -212,3 +212,27 @@ fieldset {
 .muted {
   color: #888;
 }
+
+.pending-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.pending-table th,
+.pending-table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.overdue-row {
+  background: #fef2f2;
+}
+
+.badge-overdue {
+  color: #991b1b;
+  font-weight: 700;
+  font-size: 0.8rem;
+}

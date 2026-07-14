@@ -22,7 +22,13 @@ class Order(Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     status: Mapped[OrderStatus] = mapped_column(default=OrderStatus.pending)
     requested_date: Mapped[date | None] = mapped_column(nullable=True)
+    # Fecha y hora de colocacion del pedido (UTC). Inmutable: nunca se
+    # actualiza despues de crear el pedido.
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    # Fecha objetivo de entrega (services.promise_date.compute_promised_date
+    # al crear el pedido); a diferencia de created_at, si se puede editar
+    # despues (solo hacia el mismo dia del pedido o uno posterior).
+    promised_date: Mapped[date] = mapped_column()
     notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     customer: Mapped["Customer"] = relationship()

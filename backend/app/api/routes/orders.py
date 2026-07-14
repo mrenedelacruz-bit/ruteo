@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -6,7 +8,8 @@ from app.core.db import get_db
 from app.models.customer import Customer
 from app.models.order import Order, OrderLine, OrderStatus
 from app.models.product import Product
-from app.schemas.order import OrderCreate, OrderRead
+from app.schemas.order import OrderCreate, OrderRead, PromisedDateUpdate
+from app.services.promise_date import compute_promised_date, local_date
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -34,9 +37,12 @@ def create_order(payload: OrderCreate, db: Session = Depends(get_db)):
     if missing:
         raise HTTPException(404, f"productos no encontrados: {sorted(missing)}")
 
+    now = datetime.utcnow()
     order = Order(
         customer_id=payload.customer_id,
         requested_date=payload.requested_date,
+        created_at=now,
+        promised_date=compute_promised_date(now),
         notes=payload.notes,
         lines=[OrderLine(product_id=l.product_id, quantity=l.quantity) for l in payload.lines],
     )
@@ -44,3 +50,21 @@ def create_order(payload: OrderCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(order, attribute_names=["lines"])
     return db.scalar(select(Order).options(_LOAD).where(Order.id == order.id))
+
+
+@router.patch("/{order_id}/promised-date", response_model=OrderRead)
+def update_promised_date(order_id: int, payload: PromisedDateUpdate, db: Session = Depends(get_db)):
+    order = db.scalar(select(Order).options(_LOAD).where(Order.id == order_id))
+    if order is None:
+        raise HTTPException(404, "pedido no encontrado")
+    if order.status in (OrderStatus.delivered, OrderStatus.cancelled):
+        raise HTTPException(409, f"no se puede cambiar la fecha de un pedido {order.status.value}")
+    if payload.promised_date < local_date(order.created_at):
+        raise HTTPException(
+            422, "la fecha de promesa no puede ser anterior a la fecha en que se coloco el pedido"
+        )
+
+    order.promised_date = payload.promised_date
+    db.commit()
+    db.refresh(order)
+    return order

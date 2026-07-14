@@ -1,22 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { DispatchMap } from "../components/DispatchMap";
-import type { Depot, DispatchResult, Order } from "../api/types";
+import type { Depot, DispatchResult } from "../api/types";
 
 export function DispatchBoard() {
-  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [depots, setDepots] = useState<Depot[]>([]);
   const [depotId, setDepotId] = useState<number | "">("");
   const [result, setResult] = useState<DispatchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function loadPending() {
-    api.listOrders("pending").then(setPendingOrders).catch(() => {});
-  }
-
   useEffect(() => {
-    loadPending();
     api.listDepots().then((ds) => {
       setDepots(ds);
       if (ds.length > 0) setDepotId(ds[0].id);
@@ -30,7 +24,6 @@ export function DispatchBoard() {
     try {
       const res = await api.generateDispatch(Number(depotId));
       setResult(res);
-      loadPending();
     } catch (err) {
       setError(String(err));
     } finally {
@@ -43,6 +36,10 @@ export function DispatchBoard() {
   return (
     <div className="panel">
       <h2>Panel de despacho</h2>
+      <p className="muted">
+        Genera un despacho con los camiones que ya esten completos a capacidad. Revisa "Pedidos
+        pendientes" y "Carga de flota" para ver que falta antes de generar.
+      </p>
 
       <div className="row">
         <select value={depotId} onChange={(e) => setDepotId(e.target.value ? Number(e.target.value) : "")}>
@@ -57,27 +54,24 @@ export function DispatchBoard() {
         </button>
       </div>
 
-      <h3>Pedidos pendientes ({pendingOrders.length})</h3>
-      <ul className="order-list">
-        {pendingOrders.map((o) => (
-          <li key={o.id}>
-            #{o.id} — {o.lines.map((l) => `${l.quantity} ${l.product.unit} ${l.product.name}`).join(", ")}
-          </li>
-        ))}
-        {pendingOrders.length === 0 && <li className="muted">No hay pedidos pendientes.</li>}
-      </ul>
-
       {error && <p className="msg-error">{error}</p>}
 
       {result && (
         <>
+          {result.unassigned_order_ids.length > 0 && (
+            <p className="muted">
+              Pedidos aun pendientes (ningun camion se completo con ellos todavia): #
+              {result.unassigned_order_ids.join(", #")}
+            </p>
+          )}
+
           {result.shortfalls.length > 0 && (
             <div className="warning">
-              <strong>Capacidad insuficiente para:</strong>
+              <strong>Ningun camion activo puede transportar esto (no es falta de volumen, hace falta ajustar la flota):</strong>
               <ul>
                 {result.shortfalls.map((s, i) => (
                   <li key={i}>
-                    Pedido #{s.order_id}: faltan {s.quantity} {s.product_code}
+                    Pedido #{s.order_id}: {s.quantity} {s.product_code}
                   </li>
                 ))}
               </ul>

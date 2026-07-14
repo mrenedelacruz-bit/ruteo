@@ -24,7 +24,10 @@ frontend/  App en React + TypeScript + Vite (toma de pedidos y panel de despacho
 - **Customer**: cliente con dirección y coordenadas (lat/lng).
 - **Depot**: punto de origen de despacho (p. ej. REFIDOMSA, Haina).
 - **Order / OrderLine**: pedido de un cliente con una o más líneas de
-  producto + cantidad.
+  producto + cantidad. Tiene dos fechas: `created_at` (fecha/hora de
+  colocación, en UTC — **inmutable**, nunca se modifica después de crear
+  el pedido) y `promised_date` (fecha objetivo de entrega — sí editable,
+  ver más abajo).
 - **Trip / TripStop / CompartmentAllocation**: el resultado de un despacho —
   qué camión, qué compartimientos, en qué orden visita a los clientes.
 
@@ -117,6 +120,33 @@ Solo despachadores. Alta de usuarios, cambio de rol, activar/desactivar y
 reseteo de clave desde la pestaña **Usuarios**. Un despachador no puede
 quitarse a sí mismo el acceso ni el rol.
 
+### Fecha de promesa (`app/services/promise_date.py`)
+
+Al crear un pedido se calcula automáticamente una fecha objetivo de
+entrega, según la hora de colocación en horario de República Dominicana:
+
+- Antes de las 4:00pm → promete el día siguiente.
+- A las 4:00pm o después → promete dos días después.
+
+Es una fecha objetivo, sujeta a que se complete la carga de un camión (ver
+más arriba) — no una garantía. A diferencia de `created_at` (inmutable),
+`promised_date` sí se puede editar vía `PATCH /orders/{id}/promised-date`,
+pero solo hacia el mismo día del pedido o uno posterior (nunca antes de la
+fecha en que se colocó).
+
+### Vistas de seguimiento (pestañas del frontend)
+
+- **Pedidos pendientes** (todos los roles): fecha/hora de colocación,
+  fecha de promesa (editable), y qué se pidió — de un vistazo, incluyendo
+  un aviso si un pedido ya pasó su fecha de promesa sin despacharse.
+- **Carga de flota** (`GET /dispatch/loading-status`, solo despachadores):
+  para cada camión activo, el estado de cada compartimiento con la
+  demanda pendiente actual — lleno, o cuánto y qué producto le falta para
+  completarse. Es una vista de solo lectura (no genera ningún despacho)
+  que usa la misma lógica y el mismo orden que un despacho real, así que
+  un camión que aparece "Listo para despachar" aquí es exactamente el que
+  saldría en el próximo `POST /dispatch/generate`.
+
 ## Datos de la flota
 
 `backend/app/seed/fleet_data.py` contiene los 10 camiones cisterna de la
@@ -189,15 +219,19 @@ echo "VITE_API_URL=http://localhost:8000" > .env.local
 npm run dev
 ```
 
-Cuatro vistas (las últimas tres solo visibles para el rol despachador):
+Seis vistas (las últimas cuatro solo visibles para el rol despachador):
 
 - **Tomar pedido**: alta de clientes nuevos (con búsqueda de dirección) y
   creación de pedidos (producto + cantidad, múltiples líneas por pedido).
-- **Despacho**: lista de pedidos pendientes, botón para generar el
-  despacho (asignación de flota + ruteo), y visualización en mapa
-  (Leaflet/OpenStreetMap) de las rutas resultantes por camión.
+- **Pedidos pendientes**: fecha/hora de colocación, fecha de promesa
+  (editable) y productos de cada pedido pendiente.
+- **Despacho**: botón para generar el despacho (asignación de flota +
+  ruteo), y visualización en mapa (Leaflet/OpenStreetMap) de las rutas
+  resultantes por camión.
 - **Viajes**: iniciar un viaje, confirmar la entrega de cada parada,
   cancelar, con filtro por estado.
+- **Carga de flota**: cómo se va llenando cada camión activo con los
+  pedidos pendientes, y qué le falta al que no está listo.
 - **Usuarios**: crear usuarios, cambiar rol, activar/desactivar, resetear
   clave.
 

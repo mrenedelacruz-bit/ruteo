@@ -11,10 +11,25 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.geo import point_to_latlng
 from app.models.depot import Depot
 from app.models.order import Order, OrderLine, OrderStatus
+from app.models.product import Product
 from app.models.trip import CompartmentAllocation, Trip, TripStop
 from app.models.truck import Truck, TruckStatus
-from app.schemas.dispatch import AllocationOut, DispatchResult, ShortfallOut, StopOut, TripOut
-from app.services.assignment import CompartmentSlot, Demand, TruckSlots, assign_orders_to_fleet
+from app.schemas.dispatch import (
+    AllocationOut,
+    CompartmentLoadOut,
+    DispatchResult,
+    ShortfallOut,
+    StopOut,
+    TripOut,
+    TruckLoadOut,
+)
+from app.services.assignment import (
+    CompartmentSlot,
+    Demand,
+    TruckSlots,
+    assign_orders_to_fleet,
+    fleet_loading_status,
+)
 from app.services.road_distance import build_osrm_distance_fn
 from app.services.routing import Point, RouteResult, haversine_km, optimize_route
 
@@ -31,13 +46,12 @@ def _route_with_best_distances(depot: Point, stops: list[Point]) -> RouteResult:
     return optimize_route(depot, stops, distance_fn=haversine_km)
 
 
-def generate_dispatch(
-    db: Session, depot_id: int, order_ids: list[int] | None
-) -> DispatchResult:
-    depot = db.get(Depot, depot_id)
-    if depot is None:
-        raise ValueError(f"deposito {depot_id} no encontrado")
-
+def _load_pending_demand_and_active_fleet(
+    db: Session, order_ids: list[int] | None = None
+) -> tuple[list[Order], list[Demand], list[TruckSlots], dict[int, str]]:
+    """Datos compartidos por `generate_dispatch` y `get_fleet_loading_status`:
+    pedidos pendientes (opcionalmente filtrados), su demanda por linea, y
+    los camiones activos con sus compartimientos."""
     order_stmt = (
         select(Order)
         .options(selectinload(Order.lines).selectinload(OrderLine.product), selectinload(Order.customer))
@@ -46,7 +60,6 @@ def generate_dispatch(
     if order_ids is not None:
         order_stmt = order_stmt.where(Order.id.in_(order_ids))
     orders = list(db.scalars(order_stmt).all())
-    orders_by_id = {o.id: o for o in orders}
 
     demands = [
         Demand(order_id=o.id, order_line_id=line.id, product_id=line.product_id, quantity=float(line.quantity))
@@ -71,6 +84,19 @@ def generate_dispatch(
         )
         for t in trucks
     ]
+
+    return orders, demands, truck_slots, line_product_code
+
+
+def generate_dispatch(
+    db: Session, depot_id: int, order_ids: list[int] | None
+) -> DispatchResult:
+    depot = db.get(Depot, depot_id)
+    if depot is None:
+        raise ValueError(f"deposito {depot_id} no encontrado")
+
+    orders, demands, truck_slots, line_product_code = _load_pending_demand_and_active_fleet(db, order_ids)
+    orders_by_id = {o.id: o for o in orders}
 
     result = assign_orders_to_fleet(demands, truck_slots)
 
@@ -161,3 +187,39 @@ def generate_dispatch(
     db.commit()
 
     return DispatchResult(trips=trip_outs, unassigned_order_ids=unassigned_order_ids, shortfalls=shortfalls_out)
+
+
+def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
+    """Vista de solo lectura (no persiste nada): para cada camion activo,
+    como van llenandose sus compartimientos con la demanda pendiente
+    actual, y cuanto le falta al que no esta listo."""
+    _, demands, truck_slots, _ = _load_pending_demand_and_active_fleet(db)
+    product_code_by_id = dict(db.execute(select(Product.id, Product.code)).all())
+
+    statuses = fleet_loading_status(demands, truck_slots)
+
+    return [
+        TruckLoadOut(
+            truck_code=t.truck_code,
+            total_capacity=t.total_capacity,
+            ready_to_dispatch=t.ready_to_dispatch,
+            compartments=[
+                CompartmentLoadOut(
+                    compartment_id=c.compartment.compartment_id,
+                    position=c.compartment.position,
+                    capacity=c.compartment.capacity,
+                    dedicated_product_code=product_code_by_id.get(c.compartment.product_id)
+                    if c.compartment.product_id is not None
+                    else None,
+                    filled=c.filled,
+                    product_code=product_code_by_id.get(c.candidate_product_id)
+                    if c.candidate_product_id is not None
+                    else None,
+                    quantity_available=c.quantity_available,
+                    quantity_missing=c.quantity_missing,
+                )
+                for c in t.compartments
+            ],
+        )
+        for t in statuses
+    ]

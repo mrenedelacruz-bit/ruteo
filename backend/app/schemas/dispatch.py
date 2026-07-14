@@ -50,3 +50,23 @@ class DispatchResult(BaseModel):
     # completarse a capacidad todavia (quedan pendientes para la proxima)
     unassigned_order_ids: list[int]
     shortfalls: list[ShortfallOut]
+
+
+class CompartmentLoadOut(BaseModel):
+    compartment_id: int
+    position: int
+    capacity: float
+    dedicated_product_code: str | None  # None = compartimiento flexible
+    filled: bool
+    # producto asignado (si filled) o el mejor candidato disponible ahora
+    # mismo (si no); None si no hay ninguna demanda que le sirva todavia
+    product_code: str | None
+    quantity_available: float
+    quantity_missing: float
+
+
+class TruckLoadOut(BaseModel):
+    truck_code: str
+    total_capacity: float
+    ready_to_dispatch: bool
+    compartments: list[CompartmentLoadOut]

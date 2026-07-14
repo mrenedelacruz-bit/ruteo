@@ -9,6 +9,7 @@ import type {
   Product,
   Trip,
   Truck,
+  TruckLoad,
 } from "./types";
 
 // "" = mismo origen (backend sirviendo el frontend compilado, p.ej. en
@@ -79,6 +80,12 @@ export const api = {
     request<DispatchResult>("/dispatch/generate", {
       method: "POST",
       body: JSON.stringify({ depot_id, order_ids: order_ids ?? null }),
+    }),
+  loadingStatus: () => request<TruckLoad[]>("/dispatch/loading-status"),
+  updatePromisedDate: (orderId: number, promised_date: string) =>
+    request<Order>(`/orders/${orderId}/promised-date`, {
+      method: "PATCH",
+      body: JSON.stringify({ promised_date }),
     }),
   listTrips: (status?: string) =>
     request<Trip[]>(`/trips${status ? `?status=${status}` : ""}`),

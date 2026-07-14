@@ -59,7 +59,8 @@ export interface Order {
   customer_id: number;
   status: OrderStatus;
   requested_date: string | null;
-  created_at: string;
+  created_at: string; // fecha/hora de colocacion; inmutable
+  promised_date: string; // fecha objetivo de entrega; editable
   notes: string | null;
   lines: OrderLine[];
 }
@@ -147,4 +148,22 @@ export interface Trip {
   total_distance_km: number | null;
   stops: TripStop[];
   allocations: TripAllocation[];
+}
+
+export interface CompartmentLoad {
+  compartment_id: number;
+  position: number;
+  capacity: number;
+  dedicated_product_code: string | null; // null = compartimiento flexible
+  filled: boolean;
+  product_code: string | null; // asignado (filled) o mejor candidato
+  quantity_available: number;
+  quantity_missing: number;
+}
+
+export interface TruckLoad {
+  truck_code: string;
+  total_capacity: number;
+  ready_to_dispatch: boolean;
+  compartments: CompartmentLoad[];
 }

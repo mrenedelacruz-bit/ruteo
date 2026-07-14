@@ -31,6 +31,11 @@ class OrderRead(BaseModel):
     customer_id: int
     status: OrderStatus
     requested_date: date | None
-    created_at: datetime
+    created_at: datetime  # fecha/hora de colocacion; inmutable
+    promised_date: date  # fecha objetivo de entrega; editable (ver PATCH)
     notes: str | None
     lines: list[OrderLineRead]
+
+
+class PromisedDateUpdate(BaseModel):
+    promised_date: date

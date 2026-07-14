@@ -23,6 +23,12 @@ Encontrar el maximo global de camiones despachables es un problema
 NP-dificil en general (equivale a particionar la demanda en subconjuntos
 exactos); esta heuristica es determinista y razonable para los volumenes
 tipicos de esta operacion, pero no garantiza el optimo.
+
+`assign_orders_to_fleet` (el despacho real) y `fleet_loading_status` (una
+vista previa de solo lectura de como se van llenando los camiones, y que
+les falta) comparten el mismo recorrido via `_attempt_truck`, para que la
+vista previa sea siempre consistente con lo que produciria un despacho
+real en ese momento.
 """
 
 from __future__ import annotations
@@ -85,6 +91,33 @@ class AssignmentResult:
     shortfalls: list[Demand]
 
 
+@dataclass
+class CompartmentStatus:
+    compartment: CompartmentSlot
+    filled: bool
+    plan: list[tuple[int, float]]  # (order_line_id, cantidad) tomados si filled=True
+    candidate_product_id: int | None  # producto asignado (filled) o mejor candidato disponible
+    quantity_available: float  # cuanto hay disponible de ese producto ahora mismo
+    quantity_missing: float  # 0.0 si filled=True
+
+
+@dataclass
+class TruckAttempt:
+    truck: TruckSlots
+    complete: bool
+    compartments: list[CompartmentStatus]
+    remaining_after: dict[int, float]  # pool resultante si se comitea (solo si complete=True)
+
+
+@dataclass
+class TruckLoadStatus:
+    truck_id: int
+    truck_code: str
+    total_capacity: float
+    ready_to_dispatch: bool
+    compartments: list[CompartmentStatus]
+
+
 def _fill_compartment(
     compartment: CompartmentSlot,
     demand_lookup: dict[int, Demand],
@@ -135,6 +168,90 @@ def _fill_compartment(
     return best_plan
 
 
+def _compartment_diagnostic(
+    compartment: CompartmentSlot, demand_lookup: dict[int, Demand], remaining: dict[int, float]
+) -> tuple[int, float] | None:
+    """Para un compartimiento que no se pudo llenar del todo: el producto
+    candidato con mas demanda disponible y cuanta hay, o None si no hay
+    ninguna demanda que le sirva a este compartimiento en este momento."""
+    eligible = [
+        d
+        for d in demand_lookup.values()
+        if remaining.get(d.order_line_id, 0.0) > EPSILON and compartment.accepts(d.product_id)
+    ]
+    if not eligible:
+        return None
+    totals: dict[int, float] = {}
+    for d in eligible:
+        totals[d.product_id] = totals.get(d.product_id, 0.0) + remaining[d.order_line_id]
+    return max(totals.items(), key=lambda kv: kv[1])
+
+
+def _attempt_truck(
+    truck: TruckSlots,
+    demand_lookup: dict[int, Demand],
+    remaining: dict[int, float],
+    *,
+    stop_at_first_failure: bool,
+) -> TruckAttempt:
+    # Compartimientos dedicados primero (fijan su producto especifico
+    # antes de que uno flexible pueda tomar esa misma demanda).
+    compartments = sorted(truck.compartments, key=lambda c: (c.product_id is None, -c.capacity))
+
+    trial_remaining = dict(remaining)
+    preferred_order_ids: set[int] = set()
+    statuses: list[CompartmentStatus] = []
+    complete = True
+
+    for comp in compartments:
+        plan = _fill_compartment(comp, demand_lookup, trial_remaining, preferred_order_ids)
+        if plan is not None:
+            for line_id, qty in plan:
+                trial_remaining[line_id] -= qty
+                preferred_order_ids.add(demand_lookup[line_id].order_id)
+            statuses.append(
+                CompartmentStatus(
+                    compartment=comp,
+                    filled=True,
+                    plan=plan,
+                    candidate_product_id=demand_lookup[plan[0][0]].product_id,
+                    quantity_available=comp.capacity,
+                    quantity_missing=0.0,
+                )
+            )
+            continue
+
+        complete = False
+        diag = _compartment_diagnostic(comp, demand_lookup, trial_remaining)
+        if diag is None:
+            statuses.append(
+                CompartmentStatus(
+                    compartment=comp,
+                    filled=False,
+                    plan=[],
+                    candidate_product_id=None,
+                    quantity_available=0.0,
+                    quantity_missing=comp.capacity,
+                )
+            )
+        else:
+            product_id, available = diag
+            statuses.append(
+                CompartmentStatus(
+                    compartment=comp,
+                    filled=False,
+                    plan=[],
+                    candidate_product_id=product_id,
+                    quantity_available=available,
+                    quantity_missing=max(0.0, comp.capacity - available),
+                )
+            )
+        if stop_at_first_failure:
+            break
+
+    return TruckAttempt(truck=truck, complete=complete, compartments=statuses, remaining_after=trial_remaining)
+
+
 def assign_orders_to_fleet(demands: list[Demand], trucks: list[TruckSlots]) -> AssignmentResult:
     demand_lookup = {d.order_line_id: d for d in demands}
     remaining = {d.order_line_id: d.quantity for d in demands}
@@ -153,31 +270,13 @@ def assign_orders_to_fleet(demands: list[Demand], trucks: list[TruckSlots]) -> A
     allocations: list[Allocation] = []
 
     for truck in sorted(trucks, key=lambda t: t.total_capacity):
-        # Compartimientos dedicados primero (fijan su producto especifico
-        # antes de que uno flexible pueda tomar esa misma demanda).
-        compartments = sorted(truck.compartments, key=lambda c: (c.product_id is None, -c.capacity))
-
-        trial_remaining = dict(remaining)
-        trial_plan: list[tuple[CompartmentSlot, list[tuple[int, float]]]] = []
-        preferred_order_ids: set[int] = set()
-        complete = True
-
-        for comp in compartments:
-            plan = _fill_compartment(comp, demand_lookup, trial_remaining, preferred_order_ids)
-            if plan is None:
-                complete = False
-                break
-            for line_id, qty in plan:
-                trial_remaining[line_id] -= qty
-                preferred_order_ids.add(demand_lookup[line_id].order_id)
-            trial_plan.append((comp, plan))
-
-        if not complete:
+        attempt = _attempt_truck(truck, demand_lookup, remaining, stop_at_first_failure=True)
+        if not attempt.complete:
             continue  # este camion no se completa todavia; se reintenta en otra corrida
 
-        remaining = trial_remaining
-        for comp, plan in trial_plan:
-            for line_id, qty in plan:
+        remaining = attempt.remaining_after
+        for status in attempt.compartments:
+            for line_id, qty in status.plan:
                 d = demand_lookup[line_id]
                 allocations.append(
                     Allocation(
@@ -187,9 +286,36 @@ def assign_orders_to_fleet(demands: list[Demand], trucks: list[TruckSlots]) -> A
                         quantity=qty,
                         truck_id=truck.truck_id,
                         truck_code=truck.truck_code,
-                        compartment_id=comp.compartment_id,
-                        compartment_position=comp.position,
+                        compartment_id=status.compartment.compartment_id,
+                        compartment_position=status.compartment.position,
                     )
                 )
 
     return AssignmentResult(allocations=allocations, shortfalls=shortfalls)
+
+
+def fleet_loading_status(demands: list[Demand], trucks: list[TruckSlots]) -> list[TruckLoadStatus]:
+    """Vista previa de solo lectura: para cada camion activo, el estado de
+    cada compartimiento (lleno o cuanto le falta) segun la demanda
+    pendiente actual. Sigue el mismo orden y logica de consumo que
+    `assign_orders_to_fleet`, asi que un camion `ready_to_dispatch=True`
+    aqui es exactamente el que saldria en el proximo despacho real."""
+    demand_lookup = {d.order_line_id: d for d in demands}
+    remaining = {d.order_line_id: d.quantity for d in demands}
+
+    results: list[TruckLoadStatus] = []
+    for truck in sorted(trucks, key=lambda t: t.total_capacity):
+        attempt = _attempt_truck(truck, demand_lookup, remaining, stop_at_first_failure=False)
+        results.append(
+            TruckLoadStatus(
+                truck_id=truck.truck_id,
+                truck_code=truck.truck_code,
+                total_capacity=truck.total_capacity,
+                ready_to_dispatch=attempt.complete,
+                compartments=attempt.compartments,
+            )
+        )
+        if attempt.complete:
+            remaining = attempt.remaining_after
+
+    return results
