@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♞</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Juego de ajedrez para jugar con un amigo de forma remota, directo entre navegadores." />
+    <title>Ajedrez Remoto</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>♞ Ajedrez Remoto</h1>
+        <span id="conn-badge" class="badge" hidden></span>
+      </header>
+
+      <!-- Menú principal -->
+      <main id="menu" class="menu">
+        <p class="menu-intro">
+          Juega ajedrez con otra persona a través de internet, sin cuentas ni servidores:
+          crea una partida, comparte el enlace y a jugar.
+        </p>
+
+        <section class="card">
+          <h2>Crear partida remota</h2>
+          <p>Se generará un código para que tu rival se una desde cualquier dispositivo.</p>
+          <label class="field">
+            Tu color:
+            <select id="host-color">
+              <option value="random" selected>Aleatorio</option>
+              <option value="w">Blancas</option>
+              <option value="b">Negras</option>
+            </select>
+          </label>
+          <button id="btn-host" class="primary">Crear partida</button>
+        </section>
+
+        <section class="card">
+          <h2>Unirse a una partida</h2>
+          <p>Escribe el código que te compartió tu rival.</p>
+          <div class="join-row">
+            <input id="join-code" type="text" placeholder="Ej: K7M2Q" maxlength="8" autocomplete="off" spellcheck="false" />
+            <button id="btn-join" class="primary">Unirse</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Jugar en este dispositivo</h2>
+          <p>Dos jugadores turnándose en la misma pantalla.</p>
+          <button id="btn-local">Partida local</button>
+        </section>
+      </main>
+
+      <!-- Pantalla de espera del anfitrión -->
+      <main id="waiting" class="menu" hidden>
+        <section class="card waiting-card">
+          <h2 id="wait-title">Esperando al rival…</h2>
+          <div id="wait-share">
+            <p>Comparte este código:</p>
+            <div class="code-big" id="wait-code">—</div>
+            <p>o envíale este enlace directo:</p>
+            <div class="join-row">
+              <input id="wait-link" type="text" readonly />
+              <button id="btn-copy-link">Copiar</button>
+            </div>
+          </div>
+          <p class="muted" id="wait-status">Conectando con el servicio de emparejamiento…</p>
+          <button id="btn-cancel-host" class="danger-outline">Cancelar</button>
+        </section>
+      </main>
+
+      <!-- Pantalla de juego -->
+      <main id="game" class="game" hidden>
+        <div class="board-col">
+          <div class="player-row" id="rival-row">
+            <span class="player-name" id="rival-name">Rival</span>
+            <span class="captured" id="captured-rival"></span>
+          </div>
+          <div id="board" class="board"></div>
+          <div class="player-row" id="me-row">
+            <span class="player-name" id="me-name">Tú</span>
+            <span class="captured" id="captured-me"></span>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+
+        <aside class="side">
+          <div id="offer-bar" class="offer-bar" hidden>
+            <span id="offer-text"></span>
+            <button id="btn-offer-yes" class="primary">Aceptar</button>
+            <button id="btn-offer-no">Rechazar</button>
+          </div>
+
+          <div class="side-block">
+            <h3>Jugadas</h3>
+            <ol id="moves" class="moves"></ol>
+          </div>
+
+          <div class="side-block" id="chat-block">
+            <h3>Chat</h3>
+            <div id="chat-log" class="chat-log"></div>
+            <form id="chat-form" class="join-row">
+              <input id="chat-input" type="text" placeholder="Escribe un mensaje…" maxlength="300" autocomplete="off" />
+              <button type="submit">Enviar</button>
+            </form>
+          </div>
+
+          <div class="side-actions">
+            <button id="btn-flip">⇅ Girar tablero</button>
+            <button id="btn-draw">½ Ofrecer tablas</button>
+            <button id="btn-resign" class="danger-outline">⚑ Rendirse</button>
+            <button id="btn-rematch" hidden class="primary">↻ Revancha</button>
+            <button id="btn-exit">← Salir</button>
+          </div>
+        </aside>
+      </main>
+
+      <!-- Selector de promoción -->
+      <div id="promo" class="promo-overlay" hidden>
+        <div class="promo-box">
+          <p>Elige la pieza de promoción:</p>
+          <div class="promo-options">
+            <button data-piece="q">♛</button>
+            <button data-piece="r">♜</button>
+            <button data-piece="b">♝</button>
+            <button data-piece="n">♞</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
