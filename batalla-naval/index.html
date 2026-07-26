@@ -69,6 +69,7 @@
   button:disabled{ opacity:.4; cursor:not-allowed; }
   button.primary{ background:var(--accent); border-color:var(--accent); color:#04121f; font-weight:700; }
   button.primary:hover:not(:disabled){ filter:brightness(1.08); }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 
   /* ======================================================================
      2. LAYOUT GENERAL
@@ -119,7 +120,9 @@
     border:1px solid var(--border); background:var(--bg-panel-alt); cursor:grab; user-select:none;
   }
   .fleet-item.active{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
-  .fleet-item.placed{ opacity:.35; cursor:default; }
+  /* Un barco ya colocado se atenúa, pero sigue siendo clicable para recolocarlo */
+  .fleet-item.placed{ opacity:.45; }
+  .fleet-item.placed:hover{ opacity:.8; }
   .fleet-item .squares{ display:flex; gap:2px; }
   .fleet-item .squares span{
     width:14px; height:14px; background:var(--ship); border-radius:2px;
@@ -128,6 +131,7 @@
   .fleet-item .label{ font-size:.8rem; color:var(--text-dim); white-space:nowrap; }
 
   .placement-controls{ display:flex; gap:8px; flex-wrap:wrap; }
+  .placement-hint{ font-size:.78rem; color:var(--text-dim); }
 
   /* ======================================================================
      4. TABLEROS
@@ -142,11 +146,16 @@
   .board-wrap h3{ display:flex; align-items:center; justify-content:space-between; font-size:1rem; }
   .board-wrap h3 .legend{ font-weight:400; font-size:.75rem; color:var(--text-dim); }
 
-  .grid-labels-col{ display:grid; grid-template-columns:22px 1fr; gap:4px; }
-  .col-headers{ display:grid; grid-template-columns:repeat(10, 1fr); gap:2px; margin-left:22px; margin-bottom:2px; }
-  .col-headers span{ text-align:center; font-size:.65rem; color:var(--text-dim); }
+  /* La fila de letras y la del tablero comparten exactamente la misma
+     estructura flex (misma canaleta de 18px + mismo gap de 4px), así las
+     letras quedan centradas sobre su columna en cualquier ancho. Calcular
+     la sangría a mano desalineaba las cabeceras al no contar el gap. */
   .grid-row{ display:flex; align-items:center; gap:4px; }
-  .row-label{ width:18px; font-size:.65rem; color:var(--text-dim); text-align:center; flex-shrink:0; }
+  .row-gutter{ width:18px; flex-shrink:0; }
+  .row-headers{ display:flex; flex-direction:column; gap:2px; width:18px; flex-shrink:0; }
+  .col-headers{ flex:1; display:grid; grid-template-columns:repeat(10, 1fr); gap:2px; margin-bottom:2px; }
+  .col-headers span{ text-align:center; font-size:.65rem; color:var(--text-dim); }
+  .row-label{ flex:1; display:flex; align-items:center; justify-content:center; font-size:.65rem; color:var(--text-dim); }
 
   .board{
     display:grid; grid-template-columns:repeat(10, 1fr); gap:2px;
@@ -157,6 +166,7 @@
     aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
     overflow:hidden; transition:background .12s;
   }
+  /* La clase .interactive la controla el JS: sólo cuando el tablero acepta clics */
   .board.interactive .cell:hover{ background:var(--water-hover); cursor:crosshair; }
   .cell.ship{ background:var(--ship); }
   .cell.preview-ok{ background:var(--ok); opacity:.65; }
@@ -187,6 +197,11 @@
     40%{ transform:translate(2px,-1px); }
     60%{ transform:translate(-1px,-1px); }
     80%{ transform:translate(1px,1px); }
+  }
+
+  /* Respeta la preferencia de accesibilidad de movimiento reducido */
+  @media (prefers-reduced-motion: reduce){
+    .cell.miss::after, .cell.hit::after, .cell.sunk::after, .cell.shake{ animation:none; }
   }
 
   /* ======================================================================
@@ -234,8 +249,8 @@
   </header>
 
   <div class="statusbar">
-    <div id="turnIndicator" class="turn-indicator player"><span class="dot"></span><span id="turnLabel">Coloca tu flota</span></div>
-    <div id="message" class="message">Coloca tus 5 barcos en el tablero para comenzar.</div>
+    <div id="turnIndicator" class="turn-indicator"><span class="dot"></span><span id="turnLabel">Coloca tu flota</span></div>
+    <div id="message" class="message" role="status" aria-live="polite">Coloca tus 5 barcos en el tablero para comenzar.</div>
     <div class="stats">
       <span>Tus impactos: <b id="statPlayerHits">0</b></span>
       <span>Tus fallos: <b id="statPlayerMiss">0</b></span>
@@ -254,24 +269,31 @@
       <button id="resetPlacementBtn">🧹 Reiniciar colocación</button>
       <button id="startBtn" class="primary" disabled>⚔️ Iniciar batalla</button>
     </div>
+    <p class="placement-hint">Clic en el tablero para colocar, o arrastra un barco. Tecla <b>R</b> para rotar. Clic en un barco ya colocado para recolocarlo.</p>
   </section>
 
   <!-- ==================== TABLEROS ==================== -->
   <div class="boards">
     <div class="board-wrap">
       <h3>Tu flota <span class="legend">(defensa)</span></h3>
-      <div class="col-headers" id="colHeadersMine"></div>
+      <div class="grid-row">
+        <div class="row-gutter"></div>
+        <div class="col-headers" id="colHeadersMine"></div>
+      </div>
       <div class="grid-row" style="align-items:stretch">
-        <div id="rowHeadersMine" style="display:flex; flex-direction:column; gap:2px; margin-right:4px;"></div>
+        <div class="row-headers" id="rowHeadersMine"></div>
         <div class="board" id="myBoard"></div>
       </div>
     </div>
     <div class="board-wrap">
       <h3>Flota enemiga <span class="legend">(ataque)</span></h3>
-      <div class="col-headers" id="colHeadersEnemy"></div>
+      <div class="grid-row">
+        <div class="row-gutter"></div>
+        <div class="col-headers" id="colHeadersEnemy"></div>
+      </div>
       <div class="grid-row" style="align-items:stretch">
-        <div id="rowHeadersEnemy" style="display:flex; flex-direction:column; gap:2px; margin-right:4px;"></div>
-        <div class="board interactive" id="enemyBoard"></div>
+        <div class="row-headers" id="rowHeadersEnemy"></div>
+        <div class="board" id="enemyBoard"></div>
       </div>
     </div>
   </div>
@@ -281,7 +303,7 @@
 
 <!-- ==================== MODAL FIN DE PARTIDA ==================== -->
 <div class="modal-overlay" id="modalOverlay">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="big-icon" id="modalIcon">🏆</div>
     <h2 id="modalTitle">¡Victoria!</h2>
     <p id="modalText">Has hundido toda la flota enemiga.</p>
@@ -326,54 +348,44 @@
     return FLEET_TEMPLATE.map(s => ({ ...s, cells: [], hits: 0, sunk: false }));
   }
 
+  function createOwnerState() {
+    return { grid: createEmptyGrid(), shots: createEmptyGrid(), fleet: createFleet() };
+  }
+
+  // Estado inicial de la IA. La paridad del patrón de caza se sortea una vez
+  // por partida y se mantiene fija: alternarla anularía la ventaja del patrón.
+  function createAiState() {
+    return {
+      mode: "hunt",        // 'hunt' (buscar) | 'target' (perseguir un barco tocado)
+      targetQueue: [],     // celdas candidatas, en orden de prioridad
+      currentHits: [],     // impactos del barco que se está persiguiendo
+      parity: Math.random() < 0.5 ? 0 : 1,
+    };
+  }
+
   const state = {
-    phase: "placement", // 'placement' | 'battle' | 'over'
+    phase: "placement",  // 'placement' | 'battle' | 'over'
     turn: "player",      // 'player' | 'cpu'
     soundOn: true,
 
-    player: {
-      grid: createEmptyGrid(),   // celda -> shipId | null
-      shots: createEmptyGrid(),  // disparos RECIBIDOS: null | 'hit' | 'miss'
-      fleet: createFleet(),
-    },
-    cpu: {
-      grid: createEmptyGrid(),
-      shots: createEmptyGrid(),  // disparos del jugador contra la CPU
-      fleet: createFleet(),
-    },
+    player: createOwnerState(),  // grid = flota propia; shots = disparos RECIBIDOS
+    cpu: createOwnerState(),     // grid = flota rival; shots = disparos del jugador
 
     placement: {
-      activeIndex: 0,      // índice del próximo barco a colocar en player.fleet
+      activeIndex: 0,      // índice del barco seleccionado en player.fleet
       orientation: ORIENTATION.H,
     },
 
-    ai: {
-      mode: "hunt",        // 'hunt' | 'target'
-      targetQueue: [],     // celdas candidatas tras un impacto
-      triedCells: new Set(),
-      parity: 0,           // patrón de tablero de ajedrez para el modo caza
-    },
+    ai: createAiState(),
 
-    stats: {
-      playerHits: 0, playerMiss: 0,
-      cpuHits: 0, cpuMiss: 0,
-    },
+    stats: { playerHits: 0, playerMiss: 0, cpuHits: 0, cpuMiss: 0 },
   };
 
   /* ======================================================================
      3. UTILIDADES
      ====================================================================== */
   const $ = (sel) => document.querySelector(sel);
-  const key = (r, c) => r + "_" + c;
   const inBounds = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
-
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
 
   function cellsForPlacement(row, col, size, orientation) {
     const cells = [];
@@ -390,10 +402,16 @@
     return cells.every(([r, c]) => inBounds(r, c) && grid[r][c] === null);
   }
 
-  function placeShip(gridOwner, ship, row, col, orientation) {
+  function placeShip(ownerState, ship, row, col, orientation) {
     const cells = cellsForPlacement(row, col, ship.size, orientation);
-    cells.forEach(([r, c]) => { gridOwner.grid[r][c] = ship.id; });
+    cells.forEach(([r, c]) => { ownerState.grid[r][c] = ship.id; });
     ship.cells = cells;
+  }
+
+  // Devuelve un barco ya colocado "a la mano" para poder recolocarlo
+  function unplaceShip(ownerState, ship) {
+    ship.cells.forEach(([r, c]) => { ownerState.grid[r][c] = null; });
+    ship.cells = [];
   }
 
   /* ======================================================================
@@ -402,6 +420,8 @@
   let audioCtx = null;
   function getAudioCtx() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Algunos navegadores crean el contexto suspendido hasta el primer gesto
+    if (audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
   }
 
@@ -452,17 +472,13 @@
       for (let r = 0; r < BOARD_SIZE; r++) {
         const div = document.createElement("div");
         div.className = "row-label";
-        div.style.flex = "1";
-        div.style.display = "flex";
-        div.style.alignItems = "center";
-        div.style.justifyContent = "center";
         div.textContent = String(r + 1);
         el.appendChild(div);
       }
     });
   }
 
-  function buildBoard(boardEl, ownerKey) {
+  function buildBoard(boardEl) {
     boardEl.innerHTML = "";
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -470,10 +486,15 @@
         cell.className = "cell";
         cell.dataset.row = r;
         cell.dataset.col = c;
-        cell.dataset.owner = ownerKey;
         boardEl.appendChild(cell);
       }
     }
+  }
+
+  // Reinicia las clases de una celda conservando la animación de sacudida en
+  // curso: sin esto, un renderAll() posterior al disparo la borraría al instante.
+  function resetCellClasses(cell) {
+    cell.className = "cell" + (cell.classList.contains("shake") ? " shake" : "");
   }
 
   function renderMyBoard() {
@@ -482,19 +503,16 @@
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
         const cell = boardEl.children[r * BOARD_SIZE + c];
-        cell.className = "cell";
+        resetCellClasses(cell);
         const shipId = owner.grid[r][c];
         const shot = owner.shots[r][c];
-        if (shipId && state.phase === "placement") cell.classList.add("ship");
-        if (shipId && shot === "hit") {
+        if (shot === "hit") {
           const ship = owner.fleet.find(s => s.id === shipId);
-          cell.classList.add(ship.sunk ? "sunk" : "hit");
-        } else if (shot === "hit") {
-          cell.classList.add("hit");
+          cell.classList.add(ship && ship.sunk ? "sunk" : "hit");
         } else if (shot === "miss") {
           cell.classList.add("miss");
-        } else if (shipId && state.phase !== "placement") {
-          cell.classList.add("ship");
+        } else if (shipId) {
+          cell.classList.add("ship"); // la flota propia siempre es visible
         }
       }
     }
@@ -506,17 +524,23 @@
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
         const cell = boardEl.children[r * BOARD_SIZE + c];
-        cell.className = "cell";
+        resetCellClasses(cell);
         const shot = owner.shots[r][c];
-        const shipId = owner.grid[r][c];
         if (shot === "hit") {
-          const ship = owner.fleet.find(s => s.id === shipId);
+          const ship = owner.fleet.find(s => s.id === owner.grid[r][c]);
           cell.classList.add(ship && ship.sunk ? "sunk" : "hit");
         } else if (shot === "miss") {
           cell.classList.add("miss");
         }
+        // Los barcos rivales no tocados nunca se dibujan: son información oculta
       }
     }
+  }
+
+  // El cursor de puntería sólo aparece cuando el tablero acepta clics de verdad
+  function renderBoardInteractivity() {
+    $("#myBoard").classList.toggle("interactive", state.phase === "placement");
+    $("#enemyBoard").classList.toggle("interactive", state.phase === "battle" && state.turn === "player");
   }
 
   function renderAll() {
@@ -524,6 +548,7 @@
     renderEnemyBoard();
     renderFleetPanel();
     renderStatusBar();
+    renderBoardInteractivity();
   }
 
   /* ======================================================================
@@ -532,12 +557,17 @@
   function renderFleetPanel() {
     const row = $("#fleetRow");
     row.innerHTML = "";
+    const inPlacement = state.phase === "placement";
+
     state.player.fleet.forEach((ship, idx) => {
       const placed = ship.cells.length > 0;
       const item = document.createElement("div");
-      item.className = "fleet-item" + (placed ? " placed" : "") + (idx === state.placement.activeIndex && !placed ? " active" : "");
-      item.draggable = !placed && state.phase === "placement";
+      item.className = "fleet-item"
+        + (placed ? " placed" : "")
+        + (idx === state.placement.activeIndex ? " active" : "");
+      item.draggable = inPlacement;
       item.dataset.shipIndex = idx;
+      item.title = placed ? `${ship.name}: clic para recolocarlo` : `${ship.name} (${ship.size} casillas)`;
 
       const squares = document.createElement("div");
       squares.className = "squares";
@@ -551,13 +581,19 @@
       item.appendChild(label);
       row.appendChild(item);
 
-      if (!placed && state.phase === "placement") {
-        item.addEventListener("click", () => { state.placement.activeIndex = idx; renderFleetPanel(); });
-        item.addEventListener("dragstart", (e) => {
-          state.placement.activeIndex = idx;
-          e.dataTransfer.setData("text/plain", String(idx));
-        });
-      }
+      if (!inPlacement) return;
+
+      // Seleccionar un barco; si ya estaba colocado, se devuelve a la mano
+      const selectShip = () => {
+        if (ship.cells.length > 0) unplaceShip(state.player, ship);
+        state.placement.activeIndex = idx;
+        refreshPlacementUI();
+      };
+      item.addEventListener("click", selectShip);
+      item.addEventListener("dragstart", (e) => {
+        selectShip();
+        e.dataTransfer.setData("text/plain", String(idx));
+      });
     });
   }
 
@@ -565,52 +601,68 @@
     return state.player.fleet[state.placement.activeIndex] || null;
   }
 
+  function allShipsPlaced() {
+    return state.player.fleet.every(s => s.cells.length > 0);
+  }
+
   function clearPreview() {
-    document.querySelectorAll("#myBoard .cell").forEach(c => c.classList.remove("preview-ok", "preview-bad"));
+    document.querySelectorAll("#myBoard .cell.preview-ok, #myBoard .cell.preview-bad")
+      .forEach(c => c.classList.remove("preview-ok", "preview-bad"));
   }
 
   function showPreview(row, col) {
     clearPreview();
     const ship = currentShipToPlace();
-    if (!ship) return;
+    if (!ship || ship.cells.length > 0) return;
     const cells = cellsForPlacement(row, col, ship.size, state.placement.orientation);
     const ok = canPlace(state.player.grid, row, col, ship.size, state.placement.orientation);
     const boardEl = $("#myBoard");
     cells.forEach(([r, c]) => {
       if (!inBounds(r, c)) return;
-      const cell = boardEl.children[r * BOARD_SIZE + c];
-      cell.classList.add(ok ? "preview-ok" : "preview-bad");
+      boardEl.children[r * BOARD_SIZE + c].classList.add(ok ? "preview-ok" : "preview-bad");
     });
   }
 
   function tryPlaceCurrentShip(row, col) {
+    if (state.phase !== "placement") return;
     const ship = currentShipToPlace();
-    if (!ship || state.phase !== "placement") return;
-    if (!canPlace(state.player.grid, row, col, ship.size, state.placement.orientation)) return;
+    if (!ship || ship.cells.length > 0) return;
+    if (!canPlace(state.player.grid, row, col, ship.size, state.placement.orientation)) {
+      // Sin hover en pantallas táctiles, un toque inválido debe explicarse
+      $("#message").textContent = `Ahí no cabe el ${ship.name}: se sale del tablero o choca con otro barco.`;
+      return;
+    }
     placeShip(state.player, ship, row, col, state.placement.orientation);
     sfx.place();
-    advanceToNextShip();
+    selectNextUnplacedShip();
   }
 
-  function advanceToNextShip() {
+  // Salta al siguiente barco pendiente (si queda alguno) y refresca la interfaz
+  function selectNextUnplacedShip() {
     const next = state.player.fleet.findIndex(s => s.cells.length === 0);
     state.placement.activeIndex = next === -1 ? state.player.fleet.length : next;
-    const allPlaced = state.player.fleet.every(s => s.cells.length > 0);
-    $("#startBtn").disabled = !allPlaced;
-    $("#message").textContent = allPlaced
+    refreshPlacementUI();
+  }
+
+  // Refresca botones/mensaje SIN cambiar el barco seleccionado, para no pisar
+  // una selección manual del jugador (p. ej. al recolocar un barco concreto).
+  function refreshPlacementUI() {
+    const ready = allShipsPlaced();
+    $("#startBtn").disabled = !ready;
+    const ship = currentShipToPlace();
+    $("#message").textContent = ready
       ? "¡Flota lista! Pulsa «Iniciar batalla» cuando quieras."
-      : `Coloca tu ${currentShipToPlace() ? currentShipToPlace().name : ""}.`;
+      : ship ? `Coloca tu ${ship.name}.` : "Selecciona un barco para colocarlo.";
     clearPreview();
     renderAll();
   }
 
   function resetPlacement() {
-    state.player.grid = createEmptyGrid();
-    state.player.fleet = createFleet();
+    state.player = createOwnerState();
     state.placement.activeIndex = 0;
     state.placement.orientation = ORIENTATION.H;
-    $("#rotateBtn").textContent = "🔄 Rotar (horizontal)";
-    advanceToNextShip();
+    updateRotateLabel();
+    refreshPlacementUI();
   }
 
   function randomlyPlaceFleet(ownerState) {
@@ -630,51 +682,111 @@
     });
   }
 
-  /* ======================================================================
-     7. INTELIGENCIA ARTIFICIAL (colocación + disparo caza/objetivo)
-     ====================================================================== */
-  function aiPickShot() {
-    const { shots } = state.player;
-
-    // Modo "objetivo": hay celdas candidatas en cola tras un impacto reciente
-    while (state.ai.targetQueue.length > 0) {
-      const [r, c] = state.ai.targetQueue.shift();
-      if (inBounds(r, c) && shots[r][c] === null) return [r, c];
-    }
-
-    // Modo "caza": patrón de tablero de ajedrez para reducir el espacio de búsqueda
-    // (todo barco mide >= 2 casillas, por lo que basta explorar la mitad del tablero)
-    const candidates = [];
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (shots[r][c] !== null) continue;
-        if ((r + c) % 2 === state.ai.parity) candidates.push([r, c]);
-      }
-    }
-    const pool = candidates.length > 0 ? candidates : allRemainingCells(shots);
-    return pool[Math.floor(Math.random() * pool.length)];
+  function updateRotateLabel() {
+    $("#rotateBtn").textContent = "🔄 Rotar ("
+      + (state.placement.orientation === ORIENTATION.H ? "horizontal" : "vertical") + ")";
   }
 
-  function allRemainingCells(shots) {
+  /* ======================================================================
+     7. INTELIGENCIA ARTIFICIAL (colocación aleatoria + caza/persecución)
+     ====================================================================== */
+
+  // Celdas aún sin disparar sobre el tablero del jugador
+  function isFreeCell([r, c]) {
+    return inBounds(r, c) && state.player.shots[r][c] === null;
+  }
+
+  /**
+   * Construye la cola de objetivos a partir de los impactos del barco en curso.
+   * Con dos o más impactos alineados, extiende por los extremos del eje detectado
+   * (mucho más eficaz que probar los cuatro vecinos). Si el eje está agotado o los
+   * impactos no están alineados —caso de barcos contiguos—, cae a los vecinos de
+   * cada impacto, de modo que la cola nunca queda vacía por error.
+   */
+  function buildTargetQueue() {
+    const hits = state.ai.currentHits;
+    const axial = [];
+
+    if (hits.length >= 2) {
+      const rows = hits.map(([r]) => r);
+      const cols = hits.map(([, c]) => c);
+      const sameRow = rows.every(r => r === rows[0]);
+      const sameCol = cols.every(c => c === cols[0]);
+      if (sameRow) {
+        axial.push([rows[0], Math.min(...cols) - 1], [rows[0], Math.max(...cols) + 1]);
+      } else if (sameCol) {
+        axial.push([Math.min(...rows) - 1, cols[0]], [Math.max(...rows) + 1, cols[0]]);
+      }
+    }
+
+    let candidates = axial.filter(isFreeCell);
+    if (candidates.length === 0) {
+      hits.forEach(([r, c]) => {
+        [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
+          .filter(isFreeCell)
+          .forEach(n => candidates.push(n));
+      });
+    }
+
+    // Sin duplicados, respetando el orden de prioridad
+    const seen = new Set();
+    return candidates.filter(([r, c]) => {
+      const k = r + "_" + c;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  function allRemainingCells() {
     const cells = [];
     for (let r = 0; r < BOARD_SIZE; r++)
       for (let c = 0; c < BOARD_SIZE; c++)
-        if (shots[r][c] === null) cells.push([r, c]);
+        if (state.player.shots[r][c] === null) cells.push([r, c]);
     return cells;
   }
 
-  function aiRegisterHit(row, col, sunkShip) {
-    if (sunkShip) {
-      // Barco hundido: se descarta la cola de objetivos, se vuelve al modo caza
-      state.ai.targetQueue = [];
+  function aiPickShot() {
+    // --- Modo persecución: terminar el barco ya tocado ---
+    if (state.ai.mode === "target") {
+      let queue = state.ai.targetQueue.filter(isFreeCell);
+      if (queue.length === 0 && state.ai.currentHits.length > 0) queue = buildTargetQueue();
+      if (queue.length > 0) {
+        state.ai.targetQueue = queue.slice(1);
+        return queue[0];
+      }
+      // El barco quedó rodeado sin hundirse (barcos contiguos): volver a cazar
       state.ai.mode = "hunt";
+      state.ai.currentHits = [];
+      state.ai.targetQueue = [];
+    }
+
+    // --- Modo caza: patrón de tablero de ajedrez ---
+    // Todo barco mide >= 2 casillas, así que siempre toca al menos una celda de
+    // la paridad elegida: basta explorar la mitad del tablero para encontrarlos.
+    const candidates = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (state.player.shots[r][c] !== null) continue;
+        if ((r + c) % 2 === state.ai.parity) candidates.push([r, c]);
+      }
+    }
+    const pool = candidates.length > 0 ? candidates : allRemainingCells();
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function aiRegisterShotResult(row, col, hit, sunk) {
+    if (!hit) return;
+    if (sunk) {
+      // Barco hundido: se abandona la persecución y se vuelve al patrón de caza
+      state.ai.mode = "hunt";
+      state.ai.currentHits = [];
+      state.ai.targetQueue = [];
       return;
     }
     state.ai.mode = "target";
-    const neighbors = [[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]];
-    neighbors.forEach(([r, c]) => {
-      if (inBounds(r, c) && state.player.shots[r][c] === null) state.ai.targetQueue.push([r, c]);
-    });
+    state.ai.currentHits.push([row, col]);
+    state.ai.targetQueue = buildTargetQueue();
   }
 
   /* ======================================================================
@@ -697,23 +809,22 @@
     return ownerState.fleet.every(s => s.sunk);
   }
 
-  function animateCell(boardEl, row, col, className) {
+  // Sacudida de la celda impactada. Se llama SIEMPRE después de renderAll(),
+  // porque el repintado reconstruye las clases de cada celda.
+  function shakeCell(boardEl, row, col) {
     const cell = boardEl.children[row * BOARD_SIZE + col];
-    cell.classList.add(className, "shake");
-    setTimeout(() => cell.classList.remove("shake"), 400);
+    cell.classList.add("shake");
+    setTimeout(() => cell.classList.remove("shake"), 420);
   }
 
   function playerFire(row, col) {
     if (state.phase !== "battle" || state.turn !== "player") return;
-    if (state.cpu.shots[row][col] !== null) return; // ya disparada
+    if (state.cpu.shots[row][col] !== null) return; // celda ya disparada
 
     const { hit, ship } = resolveShot(state.cpu, row, col);
-    renderAll();
-    const boardEl = $("#enemyBoard");
 
     if (hit) {
       state.stats.playerHits++;
-      animateCell(boardEl, row, col, ship.sunk ? "sunk" : "hit");
       if (ship.sunk) {
         sfx.sunk();
         $("#message").textContent = `¡Hundiste el ${ship.name} enemigo! Sigues disparando.`;
@@ -721,32 +832,31 @@
         sfx.hit();
         $("#message").textContent = "¡Impacto! Sigues disparando.";
       }
+      // El jugador conserva el turno mientras acierte
       renderAll();
-      if (fleetDefeated(state.cpu)) return endGame("player");
-      // El jugador acierta: conserva el turno
+      shakeCell($("#enemyBoard"), row, col);
+      if (fleetDefeated(state.cpu)) endGame("player");
     } else {
       state.stats.playerMiss++;
-      animateCell(boardEl, row, col, "miss");
       sfx.miss();
       $("#message").textContent = "Agua... turno de la CPU.";
-      renderAll();
       state.turn = "cpu";
-      renderStatusBar();
+      renderAll();
+      shakeCell($("#enemyBoard"), row, col);
       setTimeout(cpuTurn, 700);
     }
   }
 
   function cpuTurn() {
+    // Guarda contra temporizadores heredados de una partida ya reiniciada
     if (state.phase !== "battle" || state.turn !== "cpu") return;
+
     const [row, col] = aiPickShot();
     const { hit, ship } = resolveShot(state.player, row, col);
-    const boardEl = $("#myBoard");
-    renderAll();
+    aiRegisterShotResult(row, col, hit, hit && ship.sunk);
 
     if (hit) {
       state.stats.cpuHits++;
-      animateCell(boardEl, row, col, ship.sunk ? "sunk" : "hit");
-      aiRegisterHit(row, col, ship.sunk);
       if (ship.sunk) {
         sfx.sunk();
         $("#message").textContent = `La CPU hundió tu ${ship.name}. Dispara de nuevo...`;
@@ -755,16 +865,16 @@
         $("#message").textContent = "La CPU te ha impactado. Dispara de nuevo...";
       }
       renderAll();
+      shakeCell($("#myBoard"), row, col);
       if (fleetDefeated(state.player)) return endGame("cpu");
       setTimeout(cpuTurn, 750); // la CPU conserva el turno si acierta
     } else {
       state.stats.cpuMiss++;
-      animateCell(boardEl, row, col, "miss");
       sfx.miss();
-      state.ai.parity = 1 - state.ai.parity;
       $("#message").textContent = "La CPU falló. Tu turno.";
       state.turn = "player";
       renderAll();
+      shakeCell($("#myBoard"), row, col);
     }
   }
 
@@ -791,7 +901,7 @@
   }
 
   function startBattle() {
-    if (!state.player.fleet.every(s => s.cells.length > 0)) return;
+    if (!allShipsPlaced()) return;
     randomlyPlaceFleet(state.cpu);
     state.phase = "battle";
     state.turn = "player";
@@ -803,106 +913,108 @@
   function endGame(winner) {
     state.phase = "over";
     renderAll();
-    const overlay = $("#modalOverlay");
+
     const isPlayer = winner === "player";
     $("#modalIcon").textContent = isPlayer ? "🏆" : "💀";
     $("#modalTitle").textContent = isPlayer ? "¡Victoria!" : "Derrota";
     $("#modalText").textContent = isPlayer
       ? "Has hundido toda la flota enemiga."
       : "La CPU ha hundido toda tu flota.";
-    $("#modalHits").textContent = isPlayer ? state.stats.playerHits : state.stats.cpuHits;
-    $("#modalMiss").textContent = isPlayer ? state.stats.playerMiss : state.stats.cpuMiss;
-    $("#modalShots").textContent = isPlayer
-      ? state.stats.playerHits + state.stats.playerMiss
-      : state.stats.cpuHits + state.stats.cpuMiss;
-    overlay.classList.add("show");
-    isPlayer ? sfx.win() : sfx.lose();
+    const hits = isPlayer ? state.stats.playerHits : state.stats.cpuHits;
+    const miss = isPlayer ? state.stats.playerMiss : state.stats.cpuMiss;
+    $("#modalHits").textContent = hits;
+    $("#modalMiss").textContent = miss;
+    $("#modalShots").textContent = hits + miss;
+    $("#modalOverlay").classList.add("show");
+    $("#playAgainBtn").focus();
+
+    if (isPlayer) sfx.win(); else sfx.lose();
   }
 
   function resetGame() {
     state.phase = "placement";
     state.turn = "player";
-    state.player = { grid: createEmptyGrid(), shots: createEmptyGrid(), fleet: createFleet() };
-    state.cpu = { grid: createEmptyGrid(), shots: createEmptyGrid(), fleet: createFleet() };
+    state.player = createOwnerState();
+    state.cpu = createOwnerState();
     state.placement.activeIndex = 0;
     state.placement.orientation = ORIENTATION.H;
-    state.ai = { mode: "hunt", targetQueue: [], triedCells: new Set(), parity: 0 };
+    state.ai = createAiState();
     state.stats = { playerHits: 0, playerMiss: 0, cpuHits: 0, cpuMiss: 0 };
-    $("#rotateBtn").textContent = "🔄 Rotar (horizontal)";
+    updateRotateLabel();
     $("#placementPanel").classList.remove("hidden");
     $("#modalOverlay").classList.remove("show");
-    $("#message").textContent = "Coloca tus 5 barcos en el tablero para comenzar.";
-    advanceToNextShip();
+    refreshPlacementUI();
   }
 
   /* ======================================================================
      10. EVENTOS DE INTERFAZ
      ====================================================================== */
+  function cellCoordsFrom(e) {
+    const cell = e.target.closest(".cell");
+    if (!cell) return null;
+    return [Number(cell.dataset.row), Number(cell.dataset.col)];
+  }
+
   function wireEvents() {
     const myBoardEl = $("#myBoard");
     const enemyBoardEl = $("#enemyBoard");
 
-    // --- Colocación por clic ---
+    // --- Colocación por clic (con vista previa al pasar el ratón) ---
     myBoardEl.addEventListener("mouseover", (e) => {
       if (state.phase !== "placement") return;
-      const cell = e.target.closest(".cell");
-      if (!cell) return;
-      showPreview(Number(cell.dataset.row), Number(cell.dataset.col));
+      const at = cellCoordsFrom(e);
+      if (at) showPreview(at[0], at[1]);
     });
     myBoardEl.addEventListener("mouseleave", clearPreview);
     myBoardEl.addEventListener("click", (e) => {
-      if (state.phase !== "placement") return;
-      const cell = e.target.closest(".cell");
-      if (!cell) return;
-      tryPlaceCurrentShip(Number(cell.dataset.row), Number(cell.dataset.col));
+      const at = cellCoordsFrom(e);
+      if (at) tryPlaceCurrentShip(at[0], at[1]);
     });
 
     // --- Colocación por arrastrar y soltar ---
     myBoardEl.addEventListener("dragover", (e) => {
       if (state.phase !== "placement") return;
       e.preventDefault();
-      const cell = e.target.closest(".cell");
-      if (!cell) return;
-      showPreview(Number(cell.dataset.row), Number(cell.dataset.col));
+      const at = cellCoordsFrom(e);
+      if (at) showPreview(at[0], at[1]);
     });
     myBoardEl.addEventListener("drop", (e) => {
       if (state.phase !== "placement") return;
       e.preventDefault();
-      const cell = e.target.closest(".cell");
-      if (!cell) return;
-      tryPlaceCurrentShip(Number(cell.dataset.row), Number(cell.dataset.col));
+      const at = cellCoordsFrom(e);
+      if (at) tryPlaceCurrentShip(at[0], at[1]);
     });
 
-    // --- Disparo sobre tablero enemigo ---
+    // --- Disparo sobre el tablero enemigo ---
     enemyBoardEl.addEventListener("click", (e) => {
-      const cell = e.target.closest(".cell");
-      if (!cell) return;
-      playerFire(Number(cell.dataset.row), Number(cell.dataset.col));
+      const at = cellCoordsFrom(e);
+      if (at) playerFire(at[0], at[1]);
     });
 
     // --- Controles de colocación ---
     $("#rotateBtn").addEventListener("click", () => {
-      state.placement.orientation = state.placement.orientation === ORIENTATION.H ? ORIENTATION.V : ORIENTATION.H;
-      $("#rotateBtn").textContent = "🔄 Rotar (" + (state.placement.orientation === ORIENTATION.H ? "horizontal" : "vertical") + ")";
+      state.placement.orientation =
+        state.placement.orientation === ORIENTATION.H ? ORIENTATION.V : ORIENTATION.H;
+      updateRotateLabel();
     });
     $("#randomBtn").addEventListener("click", () => {
       randomlyPlaceFleet(state.player);
-      advanceToNextShip();
+      selectNextUnplacedShip();
     });
     $("#resetPlacementBtn").addEventListener("click", resetPlacement);
     $("#startBtn").addEventListener("click", startBattle);
-
-    // --- Modal ---
     $("#playAgainBtn").addEventListener("click", resetGame);
 
     // --- Sonido ---
     $("#soundToggle").addEventListener("click", () => {
       state.soundOn = !state.soundOn;
       $("#soundToggle").textContent = state.soundOn ? "🔊 Sonido" : "🔇 Silencio";
+      $("#soundToggle").setAttribute("aria-pressed", String(state.soundOn));
     });
 
-    // Atajo de teclado: R para rotar durante la colocación
+    // --- Atajo: R para rotar (sin secuestrar Ctrl+R / Cmd+R del navegador) ---
     document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key.toLowerCase() === "r" && state.phase === "placement") $("#rotateBtn").click();
     });
   }
@@ -912,11 +1024,11 @@
      ====================================================================== */
   function init() {
     buildHeaders();
-    buildBoard($("#myBoard"), "player");
-    buildBoard($("#enemyBoard"), "cpu");
+    buildBoard($("#myBoard"));
+    buildBoard($("#enemyBoard"));
     wireEvents();
-    advanceToNextShip();
-    renderAll();
+    updateRotateLabel();
+    refreshPlacementUI();
   }
 
   init();
