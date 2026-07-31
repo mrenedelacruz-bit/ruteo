@@ -118,7 +118,7 @@ FLEET: list[dict] = [
             {"capacity": 1_000, "product_code": "FUEL_OIL"},
         ],
         "status": "active",
-        "notes": "Cliente dedicado: COSANCA",
+        "notes": "Comprado a COSANCA",
     },
     {
         "code": "T-08",
@@ -134,7 +134,7 @@ FLEET: list[dict] = [
             {"capacity": 1_000, "product_code": "FUEL_OIL"},
         ],
         "status": "active",
-        "notes": "Cliente dedicado: COSANCA",
+        "notes": "Comprado a COSANCA",
     },
     {
         "code": "T-09",
@@ -171,7 +171,7 @@ FLEET: list[dict] = [
             {"capacity": 2_000, "product_code": None},
         ],
         "status": "active",
-        "notes": "Camion WOP (diesel/gasolina); compartimientos flexibles, cualquiera admite cualquiera de los 4 productos. Cliente dedicado: COSANCA",
+        "notes": "Camion WOP (diesel/gasolina); compartimientos flexibles, cualquiera admite cualquiera de los 4 productos. Comprado a COSANCA",
     },
     {
         # Camion WOP adicional, misma distribucion de compartimientos y
