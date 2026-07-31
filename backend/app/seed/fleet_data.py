@@ -25,7 +25,7 @@ FLEET: list[dict] = [
             {"capacity": 3_000, "product_code": "FUEL_OIL"},
         ],
         "status": "out_of_service",
-        "notes": "Accidente Pedernales",
+        "notes": "Accidente Pedernales; en reparacion de motor",
     },
     {
         "code": "T-02",
@@ -118,7 +118,7 @@ FLEET: list[dict] = [
             {"capacity": 1_000, "product_code": "FUEL_OIL"},
         ],
         "status": "active",
-        "notes": None,
+        "notes": "Cliente dedicado: COSANCA",
     },
     {
         "code": "T-08",
@@ -134,7 +134,7 @@ FLEET: list[dict] = [
             {"capacity": 1_000, "product_code": "FUEL_OIL"},
         ],
         "status": "active",
-        "notes": None,
+        "notes": "Cliente dedicado: COSANCA",
     },
     {
         "code": "T-09",
@@ -171,7 +171,7 @@ FLEET: list[dict] = [
             {"capacity": 2_000, "product_code": None},
         ],
         "status": "active",
-        "notes": "Camion WOP (diesel/gasolina); compartimientos flexibles, cualquiera admite cualquiera de los 4 productos",
+        "notes": "Camion WOP (diesel/gasolina); compartimientos flexibles, cualquiera admite cualquiera de los 4 productos. Cliente dedicado: COSANCA",
     },
     {
         # Camion WOP adicional, misma distribucion de compartimientos y
