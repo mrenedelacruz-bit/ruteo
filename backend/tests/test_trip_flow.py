@@ -71,6 +71,34 @@ def test_cancel_returns_undelivered_orders_to_pending():
     assert trip.stops[1].order.status == OrderStatus.pending
 
 
+def test_deliver_with_pending_part_on_another_trip_keeps_order_dispatched():
+    """Pedido dividido en dos camiones: entregar la primera parte no debe
+    marcar el pedido como entregado (la otra parte sigue en ruta)."""
+    trip = make_trip(n_stops=1)
+    start_trip(trip)
+
+    deliver_stop(trip, trip.stops[0], order_fully_delivered=False)
+
+    assert trip.stops[0].delivered_at is not None
+    assert trip.stops[0].order.status == OrderStatus.dispatched  # no delivered
+    assert trip.status == TripStatus.completed  # el viaje si termina
+
+
+def test_cancel_keeps_orders_that_still_travel_on_another_active_trip():
+    """Cancelar un viaje no devuelve a pending un pedido que sigue
+    comprometido (dividido) en otro viaje activo — devolverlo haria que
+    otro despacho lo re-asignara completo y se entregara doble."""
+    trip = make_trip(n_stops=2)
+    start_trip(trip)
+
+    shared_order_id = trip.stops[0].order_id
+    cancel_trip(trip, orders_on_other_active_trips=frozenset({shared_order_id}))
+
+    assert trip.status == TripStatus.cancelled
+    assert trip.stops[0].order.status == OrderStatus.dispatched  # sigue en el otro viaje
+    assert trip.stops[1].order.status == OrderStatus.pending  # este si se libera
+
+
 def test_cannot_cancel_completed_trip():
     trip = make_trip(n_stops=1)
     start_trip(trip)

@@ -32,7 +32,11 @@ def start_trip(trip: Trip) -> None:
         stop.order.status = OrderStatus.dispatched
 
 
-def deliver_stop(trip: Trip, stop: TripStop) -> None:
+def deliver_stop(trip: Trip, stop: TripStop, *, order_fully_delivered: bool = True) -> None:
+    """`order_fully_delivered`: False cuando el pedido de esta parada esta
+    dividido en otro viaje activo que aun no entrega su parte — en ese
+    caso el pedido no debe marcarse `delivered` todavia (lo marcara la
+    entrega de la ultima parte)."""
     if trip.status != TripStatus.in_progress:
         raise TripTransitionError(f"el viaje no esta en ruta (estado actual: {trip.status.value})")
     if stop.trip_id != trip.id:
@@ -41,16 +45,22 @@ def deliver_stop(trip: Trip, stop: TripStop) -> None:
         raise TripTransitionError("esta parada ya fue entregada")
 
     stop.delivered_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    stop.order.status = OrderStatus.delivered
+    if order_fully_delivered:
+        stop.order.status = OrderStatus.delivered
 
     if all(s.delivered_at is not None for s in trip.stops):
         trip.status = TripStatus.completed
 
 
-def cancel_trip(trip: Trip) -> None:
+def cancel_trip(trip: Trip, *, orders_on_other_active_trips: frozenset[int] = frozenset()) -> None:
+    """`orders_on_other_active_trips`: pedidos de este viaje que tambien
+    viajan (divididos) en otro viaje aun activo — esos NO vuelven a
+    `pending` (siguen comprometidos con el otro viaje); devolverlos haria
+    que un proximo despacho los re-asignara completos y se entregara
+    doble."""
     if trip.status not in (TripStatus.planned, TripStatus.in_progress):
         raise TripTransitionError(f"no se puede cancelar un viaje {trip.status.value}")
     trip.status = TripStatus.cancelled
     for stop in trip.stops:
-        if stop.delivered_at is None:
+        if stop.delivered_at is None and stop.order_id not in orders_on_other_active_trips:
             stop.order.status = OrderStatus.pending

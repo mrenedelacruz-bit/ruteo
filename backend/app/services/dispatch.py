@@ -257,6 +257,7 @@ def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
         .options(selectinload(Truck.compartments))
         .join(Trip, Trip.truck_id == Truck.id)
         .where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+        .distinct()
     ).all()
     if busy_trucks:
         allocations = db.scalars(
@@ -265,12 +266,18 @@ def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
             .options(selectinload(CompartmentAllocation.order_line).selectinload(OrderLine.product))
             .where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
         ).all()
-        alloc_by_compartment = {a.compartment_id: a for a in allocations}
+        # Un compartimiento puede llevar varias lineas (del mismo producto,
+        # p.ej. dos pedidos combinados): sumar sus cantidades.
+        qty_by_compartment: dict[int, float] = {}
+        product_by_compartment: dict[int, str] = {}
+        for a in allocations:
+            qty_by_compartment[a.compartment_id] = qty_by_compartment.get(a.compartment_id, 0.0) + float(a.quantity)
+            product_by_compartment[a.compartment_id] = a.order_line.product.code
 
         for truck in busy_trucks:
             compartments = []
             for c in truck.compartments:
-                a = alloc_by_compartment.get(c.id)
+                qty = qty_by_compartment.get(c.id)
                 compartments.append(
                     CompartmentLoadOut(
                         compartment_id=c.id,
@@ -279,10 +286,10 @@ def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
                         dedicated_product_code=product_code_by_id.get(c.product_id)
                         if c.product_id is not None
                         else None,
-                        filled=a is not None,
-                        product_code=a.order_line.product.code if a is not None else None,
-                        quantity_available=float(a.quantity) if a is not None else 0.0,
-                        quantity_missing=0.0 if a is not None else float(c.capacity),
+                        filled=qty is not None,
+                        product_code=product_by_compartment.get(c.id),
+                        quantity_available=qty if qty is not None else 0.0,
+                        quantity_missing=0.0 if qty is not None else float(c.capacity),
                     )
                 )
             results.append(

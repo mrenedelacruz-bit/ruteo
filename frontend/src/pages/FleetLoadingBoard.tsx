@@ -55,6 +55,7 @@ export function FleetLoadingBoard() {
               ese viaje y no participan en la demanda pendiente de hoy.
             </p>
           )}
+          <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -87,6 +88,7 @@ export function FleetLoadingBoard() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
     </div>

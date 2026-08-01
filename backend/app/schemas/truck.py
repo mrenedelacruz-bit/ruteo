@@ -1,11 +1,11 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.truck import TruckStatus
 
 
 class CompartmentCreate(BaseModel):
     position: int
-    capacity: float
+    capacity: float = Field(gt=0)
     product_id: int | None = None  # None = compartimiento flexible/multiproducto
 
 
@@ -22,7 +22,7 @@ class TruckCreate(BaseModel):
     chassis_year: int | None = None
     tank_brand: str | None = None
     tank_year: int | None = None
-    total_capacity: float
+    total_capacity: float = Field(gt=0)
     capacity_unit: str = "gal"
     status: TruckStatus = TruckStatus.active
     notes: str | None = None

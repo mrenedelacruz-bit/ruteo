@@ -68,6 +68,8 @@ export function TripsBoard() {
             <span className={`status status-${trip.status}`}>{STATUS_LABEL[trip.status]}</span>
           </div>
 
+          <div className="table-wrap">
+
           <table>
             <thead>
               <tr>
@@ -98,6 +100,7 @@ export function TripsBoard() {
               ))}
             </tbody>
           </table>
+          </div>
 
           <div className="row" style={{ marginTop: "0.75rem", maxWidth: 400 }}>
             {trip.status === "planned" && (

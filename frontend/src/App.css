@@ -1,50 +1,93 @@
 .app {
-  max-width: 960px;
+  max-width: 1024px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 0 1rem 2rem;
 }
 
+/* ---------- header ---------- */
+
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--accent);
+  color: white;
+  margin: 0 -1rem 1.25rem;
+  padding: 0.6rem 1rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow);
 }
 
 .app-header h1 {
-  font-size: 1.3rem;
+  font-size: 1.05rem;
   margin: 0;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.app-header h1::before {
+  content: "⛽ ";
 }
 
 .app-header nav {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
 }
 
-.app-header nav {
-  align-items: center;
+.app-header nav::-webkit-scrollbar {
+  display: none;
+}
+
+.app-header nav button {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  padding: 0.4rem 0.7rem;
+  font-weight: 600;
+}
+
+.app-header nav button:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .app-header nav button.active {
-  background: var(--accent-hover);
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  border-bottom: 2px solid var(--amber);
+  border-radius: 8px 8px 0 0;
+}
+
+.app-header nav button.secondary {
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
 }
 
 .user-badge {
-  font-size: 0.85rem;
-  color: #555;
-  margin: 0 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
 }
 
-.login-panel {
-  max-width: 380px;
-  margin: 3rem auto;
-}
+/* ---------- paneles y formularios ---------- */
 
 .panel {
   background: var(--panel-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.5rem;
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
 }
 
 .form {
@@ -66,10 +109,19 @@
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .row > * {
   flex: 1;
+  min-width: 120px;
+}
+
+/* botones y chips de estado no deben estirarse para llenar la fila */
+.row > button,
+.row > .status {
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 fieldset {
@@ -79,6 +131,14 @@ fieldset {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin: 0;
+}
+
+legend {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  padding: 0 0.4rem;
 }
 
 .subform {
@@ -86,7 +146,7 @@ fieldset {
   flex-direction: column;
   gap: 0.5rem;
   padding: 1rem;
-  background: #f9fafb;
+  background: var(--accent-soft);
   border-radius: 8px;
 }
 
@@ -100,6 +160,13 @@ fieldset {
   font-weight: 600;
 }
 
+.muted {
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+
+/* ---------- listas y tablas ---------- */
+
 .order-list {
   list-style: none;
   padding: 0;
@@ -110,64 +177,85 @@ fieldset {
 
 .order-list li {
   padding: 0.5rem 0.75rem;
-  background: #f9fafb;
+  background: var(--bg);
   border-radius: 6px;
   font-size: 0.9rem;
 }
 
 .order-list .muted {
-  color: #888;
   background: none;
 }
 
-.geo-results {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.geo-results button {
-  width: 100%;
-  text-align: left;
-  font-size: 0.85rem;
-}
-
-.warning {
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin: 1rem 0;
-}
-
-.trip-card {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-top: 1rem;
-}
-
-.trip-card table {
+table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.5rem;
   font-size: 0.9rem;
 }
 
-.trip-card th,
-.trip-card td {
+th {
   text-align: left;
-  padding: 0.35rem 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.pending-table,
+.users-table {
+  width: 100%;
+}
+
+.overdue-row {
+  background: #fef2f2 !important;
+}
+
+.badge-overdue {
+  color: var(--error);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.inactive-row {
+  opacity: 0.55;
+}
+
+/* ---------- tarjetas de viaje / carga ---------- */
+
+.trip-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-top: 1rem;
+  background: white;
+}
+
+.trip-card h4 {
+  font-size: 1rem;
 }
 
 .status {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 0.2rem 0.6rem;
+  padding: 0.25rem 0.7rem;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -192,58 +280,82 @@ fieldset {
   color: #991b1b;
 }
 
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.users-table th,
-.users-table td {
-  text-align: left;
-  padding: 0.45rem 0.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.inactive-row {
-  opacity: 0.55;
-}
-
-.muted {
-  color: #888;
-}
-
-.pending-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.pending-table th,
-.pending-table td {
-  text-align: left;
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-
-.overdue-row {
-  background: #fef2f2;
-}
-
-.badge-overdue {
-  color: #991b1b;
-  font-weight: 700;
-  font-size: 0.8rem;
-}
-
 .operation-tag {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #555;
-  background: #eef2ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
   border-radius: 999px;
-  padding: 0.15rem 0.6rem;
+  padding: 0.18rem 0.6rem;
   margin-left: 0.5rem;
   vertical-align: middle;
+  white-space: nowrap;
+}
+
+.warning {
+  background: #fef3c7;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.geo-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.geo-results button {
+  width: 100%;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+/* ---------- login ---------- */
+
+.login-panel {
+  max-width: 380px;
+  margin: 3rem auto;
+  text-align: left;
+}
+
+.login-panel h2 {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+/* ---------- movil ---------- */
+
+@media (max-width: 640px) {
+  .app {
+    padding: 0 0.6rem 1.5rem;
+  }
+
+  .app-header {
+    margin: 0 -0.6rem 1rem;
+    padding: 0.5rem 0.6rem;
+    gap: 0.5rem;
+  }
+
+  .user-badge {
+    display: none; /* en pantallas chicas el nombre completo no cabe */
+  }
+
+  .panel {
+    padding: 0.9rem;
+  }
+
+  .trip-card {
+    padding: 0.75rem;
+  }
+
+  td,
+  th {
+    padding: 0.4rem 0.45rem;
+  }
 }

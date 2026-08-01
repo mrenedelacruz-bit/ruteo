@@ -93,6 +93,7 @@ export function DispatchBoard() {
                   </li>
                 ))}
               </ol>
+              <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -113,6 +114,7 @@ export function DispatchBoard() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ))}
         </>

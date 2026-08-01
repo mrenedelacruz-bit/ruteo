@@ -65,6 +65,7 @@ export function PendingOrdersBoard() {
       {orders.length === 0 ? (
         <p className="muted">No hay pedidos pendientes.</p>
       ) : (
+        <div className="table-wrap">
         <table className="pending-table">
           <thead>
             <tr>
@@ -113,6 +114,7 @@ export function PendingOrdersBoard() {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

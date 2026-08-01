@@ -80,6 +80,8 @@ export function UsersAdmin({ currentUser }: { currentUser: CurrentUser }) {
       {error && <p className="msg-error">{error}</p>}
       {message && <p className="msg-ok">{message}</p>}
 
+      <div className="table-wrap">
+
       <table className="users-table">
         <thead>
           <tr>
@@ -132,6 +134,7 @@ export function UsersAdmin({ currentUser }: { currentUser: CurrentUser }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

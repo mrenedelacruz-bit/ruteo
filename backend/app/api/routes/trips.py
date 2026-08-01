@@ -84,8 +84,22 @@ def deliver(trip_id: int, stop_id: int, db: Session = Depends(get_db)):
     stop = next((s for s in trip.stops if s.id == stop_id), None)
     if stop is None:
         raise HTTPException(404, "parada no encontrada en este viaje")
+
+    # Un pedido dividido en varios camiones solo queda `delivered` cuando
+    # se entrega su ULTIMA parte pendiente.
+    other_pending_part = db.scalar(
+        select(TripStop.id)
+        .join(Trip, Trip.id == TripStop.trip_id)
+        .where(
+            TripStop.order_id == stop.order_id,
+            TripStop.id != stop.id,
+            TripStop.delivered_at.is_(None),
+            Trip.status.in_([TripStatus.planned, TripStatus.in_progress]),
+        )
+        .limit(1)
+    )
     try:
-        deliver_stop(trip, stop)
+        deliver_stop(trip, stop, order_fully_delivered=other_pending_part is None)
     except TripTransitionError as exc:
         raise HTTPException(409, str(exc)) from exc
     db.commit()
@@ -95,8 +109,23 @@ def deliver(trip_id: int, stop_id: int, db: Session = Depends(get_db)):
 @router.post("/{trip_id}/cancel", response_model=TripRead)
 def cancel(trip_id: int, db: Session = Depends(get_db)):
     trip = _get_trip(trip_id, db)
+
+    # Pedidos de este viaje que tambien viajan en OTRO viaje activo: no
+    # deben volver a `pending` al cancelar este (siguen comprometidos).
+    order_ids = [s.order_id for s in trip.stops]
+    shared = frozenset(
+        db.scalars(
+            select(TripStop.order_id)
+            .join(Trip, Trip.id == TripStop.trip_id)
+            .where(
+                TripStop.order_id.in_(order_ids),
+                TripStop.trip_id != trip.id,
+                Trip.status.in_([TripStatus.planned, TripStatus.in_progress]),
+            )
+        ).all()
+    )
     try:
-        cancel_trip(trip)
+        cancel_trip(trip, orders_on_other_active_trips=shared)
     except TripTransitionError as exc:
         raise HTTPException(409, str(exc)) from exc
     db.commit()

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.order import OrderStatus
 from app.schemas.product import ProductRead
@@ -8,7 +8,7 @@ from app.schemas.product import ProductRead
 
 class OrderLineCreate(BaseModel):
     product_id: int
-    quantity: float
+    quantity: float = Field(gt=0)
 
 
 class OrderCreate(BaseModel):
