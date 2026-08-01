@@ -103,6 +103,34 @@ def test_multi_product_order_splits_across_trucks_when_it_does_not_fit_in_one():
     assert {a.truck_id for a in result.allocations} == {1, 2}
 
 
+def test_flexible_compartment_with_allowed_set_rejects_other_products():
+    """Un compartimiento flexible WOP admite solo su lista de productos
+    permitidos (los blancos): un producto fuera de la lista (p.ej. jet
+    fuel) no debe entrar ahi, y sin otro camion que lo lleve es shortfall."""
+    JET = 9
+    demands = [Demand(order_id=1, order_line_id=1, product_id=JET, quantity=1000)]
+    trucks = [
+        TruckSlots(
+            truck_id=1,
+            truck_code="T-WOP",
+            compartments=[
+                CompartmentSlot(
+                    compartment_id=101,
+                    position=1,
+                    capacity=1000,
+                    product_id=None,
+                    allowed_product_ids=frozenset({DIESEL, GASOLINA}),
+                )
+            ],
+        )
+    ]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    assert result.allocations == []
+    assert len(result.shortfalls) == 1 and result.shortfalls[0].product_id == JET
+
+
 def test_flexible_compartment_can_take_any_product_and_choice_can_vary():
     demands = [Demand(order_id=1, order_line_id=1, product_id=GASOLINA, quantity=1000)]
     trucks = [truck(1, "T-WOP", [(1000, None)])]
@@ -177,7 +205,7 @@ def test_no_shortfall_when_any_truck_has_a_flexible_compartment():
     assert not result.shortfalls  # el camion flexible en principio podria cargarlo (aunque hoy no se complete)
 
 
-def test_smaller_trucks_are_completed_first():
+def test_larger_trucks_are_tried_first_to_maximize_dispatched_volume():
     demands = [
         Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=2000),
         Demand(order_id=2, order_line_id=2, product_id=FUEL_OIL, quantity=8000),
@@ -189,6 +217,35 @@ def test_smaller_trucks_are_completed_first():
 
     result = assign_orders_to_fleet(demands, trucks)
 
-    # el camion chico se completa con el pedido 1; no queda demanda para
-    # completar el grande (8000 < 10000), asi que ese se queda pendiente
+    # el grande absorbe ambos pedidos completos (2000+8000=10000 exacto);
+    # llenarlo primero evita que el chico tome el pedido de 2000 y deje
+    # los 8000 restantes varados sin camion que se complete
+    assert {a.truck_id for a in result.allocations} == {1}
+    assert sum(a.quantity for a in result.allocations) == 10000
+
+
+def test_line_that_cannot_be_fully_covered_stays_entirely_pending():
+    """Nunca recortar un pedido en silencio: si la corrida solo puede
+    cargar una parte de una linea, la linea completa queda pendiente."""
+    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=14500)]
+    trucks = [truck(1, "T-A", [(4000, FUEL_OIL), (1500, FUEL_OIL), (3000, FUEL_OIL), (3500, FUEL_OIL)])]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
+    # T-A (12000) podria llenarse con 12000 de los 14500, pero los 2500
+    # restantes no tendrian camion: la linea se difiere entera
+    assert result.allocations == []
+    assert not result.shortfalls  # hay flota capaz; solo falta volumen/capacidad hoy
+
+
+def test_exact_fit_truck_takes_the_full_line():
+    demands = [Demand(order_id=1, order_line_id=1, product_id=FUEL_OIL, quantity=14500)]
+    trucks = [
+        truck(1, "T-12000", [(4000, FUEL_OIL), (1500, FUEL_OIL), (3000, FUEL_OIL), (3500, FUEL_OIL)]),
+        truck(2, "T-14500", [(5000, FUEL_OIL), (9500, FUEL_OIL)]),
+    ]
+
+    result = assign_orders_to_fleet(demands, trucks)
+
     assert {a.truck_id for a in result.allocations} == {2}
+    assert sum(a.quantity for a in result.allocations) == 14500

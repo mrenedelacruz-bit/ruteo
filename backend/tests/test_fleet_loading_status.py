@@ -85,11 +85,12 @@ def test_completed_truck_consumes_demand_leaving_less_for_the_next_one():
     statuses = fleet_loading_status(demands, trucks)
     by_code = {s.truck_code: s for s in statuses}
 
-    assert by_code["T-chico"].ready_to_dispatch is True
-    # el camion grande necesita 3500; tras consumir 2000 en T-chico solo queda 1500 disponible en total
-    assert by_code["T-grande"].ready_to_dispatch is False
-    assert by_code["T-grande"].compartments[0].quantity_available == 1500
-    assert by_code["T-grande"].compartments[0].quantity_missing == 2000
+    # los camiones se intentan de mayor a menor: el grande absorbe toda la
+    # demanda (2000+1500=3500 exacto) y al chico no le queda nada
+    assert by_code["T-grande"].ready_to_dispatch is True
+    assert by_code["T-chico"].ready_to_dispatch is False
+    assert by_code["T-chico"].compartments[0].quantity_available == 0
+    assert by_code["T-chico"].compartments[0].quantity_missing == 2000
 
 
 def test_flexible_compartment_reports_the_best_available_candidate():

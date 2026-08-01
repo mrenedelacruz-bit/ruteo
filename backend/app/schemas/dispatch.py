@@ -67,6 +67,7 @@ class CompartmentLoadOut(BaseModel):
 
 class TruckLoadOut(BaseModel):
     truck_code: str
+    operation: str | None
     total_capacity: float
     ready_to_dispatch: bool
     # True si el camion ya tiene un viaje planificado o en curso: sus

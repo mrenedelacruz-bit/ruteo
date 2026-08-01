@@ -33,6 +33,11 @@ from app.services.assignment import (
 from app.services.road_distance import build_osrm_distance_fn
 from app.services.routing import Point, RouteResult, haversine_km, optimize_route
 
+# Un compartimiento flexible (product_id NULL, camiones WOP) admite
+# cualquiera de los productos blancos — y SOLO esos. Nunca Fuel Oil ni
+# Jet A-1, que viajan exclusivamente en compartimientos dedicados.
+WOP_PRODUCT_CODES = ("DIESEL_REGULAR", "DIESEL_PREMIUM", "GASOLINA_REGULAR", "GASOLINA_PREMIUM")
+
 
 def _route_with_best_distances(depot: Point, stops: list[Point]) -> RouteResult:
     """Rutea con distancias viales reales (OSRM) si el servicio esta
@@ -78,13 +83,21 @@ def _load_pending_demand_and_active_fleet(
         .options(selectinload(Truck.compartments))
         .where(Truck.status == TruckStatus.active, Truck.id.not_in(busy_truck_ids))
     ).all()
+
+    wop_product_ids = frozenset(
+        db.scalars(select(Product.id).where(Product.code.in_(WOP_PRODUCT_CODES))).all()
+    )
     truck_slots = [
         TruckSlots(
             truck_id=t.id,
             truck_code=t.code,
             compartments=[
                 CompartmentSlot(
-                    compartment_id=c.id, position=c.position, capacity=float(c.capacity), product_id=c.product_id
+                    compartment_id=c.id,
+                    position=c.position,
+                    capacity=float(c.capacity),
+                    product_id=c.product_id,
+                    allowed_product_ids=wop_product_ids if c.product_id is None else None,
                 )
                 for c in t.compartments
             ],
@@ -207,12 +220,14 @@ def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
     """
     _, demands, truck_slots, _ = _load_pending_demand_and_active_fleet(db)
     product_code_by_id = dict(db.execute(select(Product.id, Product.code)).all())
+    operation_by_code = dict(db.execute(select(Truck.code, Truck.operation)).all())
 
     statuses = fleet_loading_status(demands, truck_slots)
 
     results = [
         TruckLoadOut(
             truck_code=t.truck_code,
+            operation=operation_by_code.get(t.truck_code),
             total_capacity=t.total_capacity,
             ready_to_dispatch=t.ready_to_dispatch,
             on_active_trip=False,
@@ -273,6 +288,7 @@ def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
             results.append(
                 TruckLoadOut(
                     truck_code=truck.code,
+                    operation=truck.operation,
                     total_capacity=float(truck.total_capacity),
                     ready_to_dispatch=False,
                     on_active_trip=True,

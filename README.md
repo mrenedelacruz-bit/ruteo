@@ -154,14 +154,26 @@ fecha en que se colocó).
 
 ## Datos de la flota
 
-`backend/app/seed/fleet_data.py` contiene los 10 camiones cisterna de la
-flota real de la empresa (marca de chasis, año, marca de tanque,
-capacidad total y capacidades de cada compartimiento). **Las fichas
-originales fueron reemplazadas por códigos genéricos (T-01..T-10) y se
-omitieron placas y números de chasis/VIN** a pedido explícito. Ajustar o
-ampliar esta lista según vaya cambiando la flota real — no es necesario
-tocar el código de la aplicación, sólo estos datos (o usar el endpoint
-`POST /trucks`).
+`backend/app/seed/fleet_data.py` contiene la flota real de la empresa:
+**50 camiones cisterna en 7 operaciones** (Fuel Oil, JET Punta Cana, JET
+Terpel, UP Limpio, Juan Dolio WOP, UP Limpio Rígido, Transporte
+Lizandro), importados de la hoja oficial "FLOTA UP - 2026" con el
+desglose de compartimientos de cada unidad. Se usan las **fichas reales**
+(autorizado por el cliente), pero **nunca se incluyen placas ni números
+de chasis/VIN**. Ajustar o ampliar esta lista según vaya cambiando la
+flota — no es necesario tocar el código de la aplicación, sólo estos
+datos (o usar el endpoint `POST /trucks`).
+
+Reglas de producto por tipo de compartimiento:
+
+- **Dedicados**: Fuel Oil y Jet A-1 viajan únicamente en compartimientos
+  dedicados a ese producto (operaciones FUEL OIL y JET).
+- **Flexibles** (camiones WOP): admiten cualquiera de los 4 productos
+  blancos — Diesel Regular/Premium, Gasolina Regular/Premium — y la
+  elección puede variar por viaje; nunca transportan Fuel Oil ni Jet A-1.
+
+Unidades pendientes de datos (no cargadas aún): L-16, L-64, L-65, L-66 y
+L-67 (sin desglose de compartimientos en la hoja), y las operaciones GLP.
 
 El depósito REFIDOMSA está ubicado en Carretera Sánchez Km. 17.5, Zona
 Industrial de Haina, San Cristóbal (18.4239, -70.0242).

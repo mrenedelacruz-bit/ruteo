@@ -52,9 +52,17 @@ class CompartmentSlot:
     position: int
     capacity: float
     product_id: int | None = None  # producto dedicado; None = flexible
+    # Para compartimientos flexibles: productos que SI pueden llevar
+    # (p.ej. solo los 4 productos blancos en camiones WOP). None = admite
+    # cualquier producto. Ignorado si el compartimiento es dedicado.
+    allowed_product_ids: frozenset[int] | None = None
 
     def accepts(self, product_id: int) -> bool:
-        return self.product_id is None or self.product_id == product_id
+        if self.product_id is not None:
+            return self.product_id == product_id
+        if self.allowed_product_ids is not None:
+            return product_id in self.allowed_product_ids
+        return True
 
 
 @dataclass
@@ -252,24 +260,21 @@ def _attempt_truck(
     return TruckAttempt(truck=truck, complete=complete, compartments=statuses, remaining_after=trial_remaining)
 
 
-def assign_orders_to_fleet(demands: list[Demand], trucks: list[TruckSlots]) -> AssignmentResult:
-    demand_lookup = {d.order_line_id: d for d in demands}
-    remaining = {d.order_line_id: d.quantity for d in demands}
+def _fleet_can_carry(product_id: int, trucks: list[TruckSlots]) -> bool:
+    return any(c.accepts(product_id) for t in trucks for c in t.compartments)
 
-    dedicated_products = {
-        c.product_id for t in trucks for c in t.compartments if c.product_id is not None
-    }
-    has_flexible_compartment = any(c.product_id is None for t in trucks for c in t.compartments)
 
-    shortfalls = [
-        d for d in demands if d.product_id not in dedicated_products and not has_flexible_compartment
-    ]
-    for d in shortfalls:
-        remaining.pop(d.order_line_id, None)
-
+def _greedy_pass(
+    demand_lookup: dict[int, Demand], trucks: list[TruckSlots]
+) -> tuple[list[Allocation], dict[int, float]]:
+    """Una pasada codiciosa: intenta completar camiones de MAYOR a menor
+    capacidad (maximiza el volumen despachado por corrida y reduce el
+    riesgo de dejar residuos de lineas sin camion). Devuelve las
+    asignaciones y lo que quedo sin asignar por linea."""
+    remaining = {d.order_line_id: d.quantity for d in demand_lookup.values()}
     allocations: list[Allocation] = []
 
-    for truck in sorted(trucks, key=lambda t: t.total_capacity):
+    for truck in sorted(trucks, key=lambda t: -t.total_capacity):
         attempt = _attempt_truck(truck, demand_lookup, remaining, stop_at_first_failure=True)
         if not attempt.complete:
             continue  # este camion no se completa todavia; se reintenta en otra corrida
@@ -291,20 +296,44 @@ def assign_orders_to_fleet(demands: list[Demand], trucks: list[TruckSlots]) -> A
                     )
                 )
 
-    return AssignmentResult(allocations=allocations, shortfalls=shortfalls)
+    return allocations, remaining
+
+
+def assign_orders_to_fleet(demands: list[Demand], trucks: list[TruckSlots]) -> AssignmentResult:
+    shortfalls = [d for d in demands if not _fleet_can_carry(d.product_id, trucks)]
+    shortfall_ids = {d.order_line_id for d in shortfalls}
+    demand_lookup = {d.order_line_id: d for d in demands if d.order_line_id not in shortfall_ids}
+
+    # Anti-desperdicio: una linea de pedido debe quedar COMPLETA en los
+    # camiones de esta corrida o COMPLETA como pendiente — nunca recortada.
+    # Si la pasada codiciosa dejo una linea a medias (parte cargada, parte
+    # sin camion), esa linea se retira entera y se repite la pasada, para
+    # que su cliente no reciba menos de lo pedido sin que nadie lo note.
+    while True:
+        allocations, remaining = _greedy_pass(demand_lookup, trucks)
+        stranded = [
+            line_id
+            for line_id, left in remaining.items()
+            if EPSILON < left < demand_lookup[line_id].quantity - EPSILON
+        ]
+        if not stranded:
+            return AssignmentResult(allocations=allocations, shortfalls=shortfalls)
+        for line_id in stranded:
+            demand_lookup.pop(line_id)
 
 
 def fleet_loading_status(demands: list[Demand], trucks: list[TruckSlots]) -> list[TruckLoadStatus]:
     """Vista previa de solo lectura: para cada camion activo, el estado de
     cada compartimiento (lleno o cuanto le falta) segun la demanda
-    pendiente actual. Sigue el mismo orden y logica de consumo que
-    `assign_orders_to_fleet`, asi que un camion `ready_to_dispatch=True`
-    aqui es exactamente el que saldria en el proximo despacho real."""
+    pendiente actual. Sigue el mismo orden (mayor a menor capacidad) y la
+    misma logica de consumo que la pasada codiciosa del despacho real; la
+    unica diferencia es que no aplica la re-pasada anti-desperdicio, asi
+    que en el caso raro de una linea a medias puede diferir levemente."""
     demand_lookup = {d.order_line_id: d for d in demands}
     remaining = {d.order_line_id: d.quantity for d in demands}
 
     results: list[TruckLoadStatus] = []
-    for truck in sorted(trucks, key=lambda t: t.total_capacity):
+    for truck in sorted(trucks, key=lambda t: -t.total_capacity):
         attempt = _attempt_truck(truck, demand_lookup, remaining, stop_at_first_failure=False)
         results.append(
             TruckLoadStatus(

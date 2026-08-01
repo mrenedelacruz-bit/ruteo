@@ -39,6 +39,7 @@ export function FleetLoadingBoard() {
           <div className="row" style={{ justifyContent: "space-between" }}>
             <h4>
               Camion {t.truck_code} — {t.total_capacity} gal
+              {t.operation && <span className="operation-tag"> {t.operation}</span>}
             </h4>
             <span
               className={`status ${

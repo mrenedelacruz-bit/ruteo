@@ -17,6 +17,9 @@ class Truck(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    # Operacion a la que esta asignada la unidad (FUEL OIL, JET TERPEL,
+    # UP LIMPIO, etc.); None si no esta clasificada.
+    operation: Mapped[str | None] = mapped_column(String(64), nullable=True)
     chassis_brand: Mapped[str] = mapped_column(String(80))
     chassis_year: Mapped[int | None] = mapped_column(nullable=True)
     tank_brand: Mapped[str | None] = mapped_column(String(80), nullable=True)

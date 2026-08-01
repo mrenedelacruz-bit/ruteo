@@ -43,6 +43,7 @@ def run() -> None:
             compartments = t["compartments"]
             truck = Truck(
                 code=t["code"],
+                operation=t.get("operation"),
                 chassis_brand=t["chassis_brand"],
                 chassis_year=t["chassis_year"],
                 tank_brand=t["tank_brand"],

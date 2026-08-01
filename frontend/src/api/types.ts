@@ -16,6 +16,7 @@ export interface Compartment {
 export interface Truck {
   id: number;
   code: string;
+  operation: string | null;
   chassis_brand: string;
   chassis_year: number | null;
   tank_brand: string | null;
@@ -163,6 +164,7 @@ export interface CompartmentLoad {
 
 export interface TruckLoad {
   truck_code: string;
+  operation: string | null;
   total_capacity: number;
   ready_to_dispatch: boolean;
   on_active_trip: boolean; // ya tiene un viaje planificado/en curso (ver pestana Viajes)

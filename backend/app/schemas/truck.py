@@ -17,6 +17,7 @@ class CompartmentRead(CompartmentCreate):
 
 class TruckCreate(BaseModel):
     code: str
+    operation: str | None = None
     chassis_brand: str
     chassis_year: int | None = None
     tank_brand: str | None = None
@@ -40,6 +41,7 @@ class TruckRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     code: str
+    operation: str | None
     chassis_brand: str
     chassis_year: int | None
     tank_brand: str | None
