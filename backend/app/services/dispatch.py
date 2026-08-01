@@ -209,6 +209,28 @@ def generate_dispatch(
     return DispatchResult(trips=trip_outs, unassigned_order_ids=unassigned_order_ids, shortfalls=shortfalls_out)
 
 
+def run_auto_dispatch(db: Session) -> DispatchResult | None:
+    """Asignacion automatica: corre el despacho con todos los pedidos
+    pendientes contra el (unico) deposito. Se invoca al crear un pedido y
+    al completarse un viaje (camion liberado); NO al cancelar un viaje —
+    si el despachador cancela porque el camion se averio, re-crear el
+    mismo viaje al instante seria un bucle inutil (en ese caso, marcar el
+    camion en mantenimiento y usar el despacho manual si hace falta).
+    Nunca lanza: un fallo aqui no debe romper la operacion que lo disparo.
+    """
+    import logging
+
+    depot_id = db.scalar(select(Depot.id).order_by(Depot.id).limit(1))
+    if depot_id is None:
+        return None
+    try:
+        return generate_dispatch(db, depot_id=depot_id, order_ids=None)
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("auto-despacho fallo; continua sin despachar")
+        db.rollback()
+        return None
+
+
 def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
     """Vista de solo lectura (no persiste nada). Dos grupos de camiones:
     - Con un viaje planificado/en curso: se muestra su carga REAL (ya

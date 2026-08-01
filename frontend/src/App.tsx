@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { api, getToken } from "./api/client";
 import type { CurrentUser } from "./api/types";
+import { CustomersPage } from "./pages/CustomersPage";
 import { OrderForm } from "./pages/OrderForm";
 import { PendingOrdersBoard } from "./pages/PendingOrdersBoard";
-import { DispatchBoard } from "./pages/DispatchBoard";
 import { TripsBoard } from "./pages/TripsBoard";
 import { FleetLoadingBoard } from "./pages/FleetLoadingBoard";
 import { UsersAdmin } from "./pages/UsersAdmin";
 import { Login } from "./pages/Login";
 
-type Tab = "orders" | "pending" | "dispatch" | "trips" | "loading" | "users";
+type Tab = "customers" | "orders" | "pending" | "trips" | "loading" | "users";
 
 function App() {
   const [tab, setTab] = useState<Tab>("orders");
@@ -54,10 +54,10 @@ function App() {
 
   function renderTab(currentUser: CurrentUser) {
     switch (tab) {
+      case "customers":
+        return <CustomersPage />;
       case "pending":
         return <PendingOrdersBoard />;
-      case "dispatch":
-        return isDispatcher ? <DispatchBoard /> : <OrderForm />;
       case "trips":
         return isDispatcher ? <TripsBoard /> : <OrderForm />;
       case "loading":
@@ -74,6 +74,9 @@ function App() {
       <header className="app-header">
         <h1>Ruteo — Combustible</h1>
         <nav>
+          <button className={tab === "customers" ? "active" : ""} onClick={() => setTab("customers")}>
+            Clientes
+          </button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>
             Tomar pedido
           </button>
@@ -82,14 +85,11 @@ function App() {
           </button>
           {isDispatcher && (
             <>
-              <button className={tab === "dispatch" ? "active" : ""} onClick={() => setTab("dispatch")}>
-                Despacho
+              <button className={tab === "loading" ? "active" : ""} onClick={() => setTab("loading")}>
+                Carga de flota
               </button>
               <button className={tab === "trips" ? "active" : ""} onClick={() => setTab("trips")}>
                 Viajes
-              </button>
-              <button className={tab === "loading" ? "active" : ""} onClick={() => setTab("loading")}>
-                Carga de flota
               </button>
               <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")}>
                 Usuarios

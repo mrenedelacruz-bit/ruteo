@@ -237,21 +237,29 @@ echo "VITE_API_URL=http://localhost:8000" > .env.local
 npm run dev
 ```
 
-Seis vistas (las últimas cuatro solo visibles para el rol despachador):
+Módulos, siguiendo el patrón estándar de los TMS de distribución de
+combustible (maestro de clientes → entrada de pedidos → asignación
+automática → monitoreo de carga → viajes con estado):
 
-- **Tomar pedido**: alta de clientes nuevos (con búsqueda de dirección) y
-  creación de pedidos (producto + cantidad, múltiples líneas por pedido).
+- **Clientes** (maestro): alta y edición de clientes con búsqueda de
+  dirección en mapa. Es el único lugar donde se crean clientes.
+- **Tomar pedido**: selección de un cliente existente + productos y
+  cantidades. **La asignación a camiones es automática**: al crear el
+  pedido, si algún camión queda completo a capacidad, su viaje se
+  programa solo (también se re-evalúa al completarse un viaje, cuando el
+  camión se libera). `POST /dispatch/generate` sigue disponible como
+  respaldo manual para el despachador. Tras cancelar un viaje NO se
+  re-despacha automáticamente (si se canceló porque el camión se averió,
+  re-crear el mismo viaje al instante sería un bucle: marcar el camión en
+  mantenimiento y usar el respaldo manual).
 - **Pedidos pendientes**: fecha/hora de colocación, fecha de promesa
-  (editable) y productos de cada pedido pendiente.
-- **Despacho**: botón para generar el despacho (asignación de flota +
-  ruteo), y visualización en mapa (Leaflet/OpenStreetMap) de las rutas
-  resultantes por camión.
-- **Viajes**: iniciar un viaje, confirmar la entrega de cada parada,
-  cancelar, con filtro por estado.
-- **Carga de flota**: cómo se va llenando cada camión activo con los
-  pedidos pendientes, y qué le falta al que no está listo.
-- **Usuarios**: crear usuarios, cambiar rol, activar/desactivar, resetear
-  clave.
+  (editable) y productos de cada pedido en espera de completar camión.
+- **Carga de flota** (despachador): cómo se va llenando cada camión con
+  la demanda pendiente y qué le falta al que no está listo.
+- **Viajes** (despachador): viajes programados con su estado — iniciar,
+  confirmar entrega por parada, cancelar, con filtro por estado.
+- **Usuarios** (despachador): crear usuarios, cambiar rol,
+  activar/desactivar, resetear clave.
 
 ## Despliegue de demo (URL pública)
 

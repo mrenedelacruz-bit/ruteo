@@ -65,6 +65,8 @@ export const api = {
   listCustomers: () => request<Customer[]>("/customers"),
   createCustomer: (payload: Omit<Customer, "id">) =>
     request<Customer>("/customers", { method: "POST", body: JSON.stringify(payload) }),
+  updateCustomer: (id: number, payload: Partial<Omit<Customer, "id">>) =>
+    request<Customer>(`/customers/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   listDepots: () => request<Depot[]>("/depots"),
   listOrders: (status?: string) =>
     request<Order[]>(`/orders${status ? `?status=${status}` : ""}`),

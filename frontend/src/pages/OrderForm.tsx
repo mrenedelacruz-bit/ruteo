@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { Customer, GeocodeResult, Product } from "../api/types";
+import type { Customer, Product } from "../api/types";
 
 interface OrderLineDraft {
   product_id: number | "";
@@ -16,48 +16,11 @@ export function OrderForm() {
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    name: "",
-    address: "",
-    lat: "",
-    lng: "",
-    phone: "",
-  });
-  const [geoResults, setGeoResults] = useState<GeocodeResult[]>([]);
-  const [geoSearching, setGeoSearching] = useState(false);
-  const [geoError, setGeoError] = useState<string | null>(null);
-
-  async function handleGeocodeSearch() {
-    if (newCustomer.address.trim().length < 3) {
-      setGeoError("Escribe la direccion antes de buscar.");
-      return;
-    }
-    setGeoSearching(true);
-    setGeoError(null);
-    setGeoResults([]);
-    try {
-      const results = await api.geocode(newCustomer.address);
-      if (results.length === 0) {
-        setGeoError("No se encontraron coincidencias; verifica la direccion o ingresa lat/lng manualmente.");
-      }
-      setGeoResults(results);
-    } catch {
-      setGeoError("Servicio de busqueda no disponible; ingresa lat/lng manualmente.");
-    } finally {
-      setGeoSearching(false);
-    }
-  }
-
-  function pickGeoResult(r: GeocodeResult) {
-    setNewCustomer((v) => ({ ...v, lat: String(r.lat), lng: String(r.lng) }));
-    setGeoResults([]);
-  }
-
-  const loadCustomers = () => api.listCustomers().then(setCustomers).catch(() => {});
-
   useEffect(() => {
-    loadCustomers();
+    api
+      .listCustomers()
+      .then((cs) => setCustomers(cs.sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
     api.listProducts().then(setProducts).catch(() => {});
   }, []);
 
@@ -73,40 +36,12 @@ export function OrderForm() {
     setLines((prev) => prev.filter((_, i) => i !== index));
   }
 
-  async function handleCreateCustomer(e: React.FormEvent) {
-    e.preventDefault();
-    const lat = parseFloat(newCustomer.lat);
-    const lng = parseFloat(newCustomer.lng);
-    if (!newCustomer.name || !newCustomer.address || Number.isNaN(lat) || Number.isNaN(lng)) {
-      setMessage({ kind: "error", text: "Completa nombre, direccion y coordenadas validas del cliente." });
-      return;
-    }
-    try {
-      const created = await api.createCustomer({
-        name: newCustomer.name,
-        address: newCustomer.address,
-        lat,
-        lng,
-        phone: newCustomer.phone || null,
-        rnc: null,
-        notes: null,
-      });
-      await loadCustomers();
-      setCustomerId(created.id);
-      setShowNewCustomer(false);
-      setNewCustomer({ name: "", address: "", lat: "", lng: "", phone: "" });
-      setMessage({ kind: "ok", text: `Cliente "${created.name}" creado.` });
-    } catch (err) {
-      setMessage({ kind: "error", text: String(err) });
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
 
     if (customerId === "") {
-      setMessage({ kind: "error", text: "Selecciona un cliente." });
+      setMessage({ kind: "error", text: "Selecciona un cliente (se registran en el modulo Clientes)." });
       return;
     }
     const validLines = lines
@@ -129,7 +64,10 @@ export function OrderForm() {
         notes: notes || null,
         lines: validLines,
       });
-      setMessage({ kind: "ok", text: `Pedido #${order.id} creado correctamente.` });
+      setMessage({
+        kind: "ok",
+        text: `Pedido #${order.id} creado (promesa: ${order.promised_date}). La asignacion a camiones es automatica: si un camion queda completo, el viaje aparece en Viajes.`,
+      });
       setLines([{ product_id: "", quantity: "" }]);
       setNotes("");
     } catch (err) {
@@ -142,79 +80,26 @@ export function OrderForm() {
   return (
     <div className="panel">
       <h2>Nuevo pedido</h2>
+      <p className="muted">
+        El cliente debe existir en el maestro de <strong>Clientes</strong>; ahi se registran los
+        nuevos con su direccion y ubicacion.
+      </p>
 
       <form onSubmit={handleSubmit} className="form">
         <label>
           Cliente
-          <div className="row">
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">-- selecciona un cliente --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} — {c.address}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="secondary" onClick={() => setShowNewCustomer((v) => !v)}>
-              {showNewCustomer ? "Cancelar" : "+ Nuevo cliente"}
-            </button>
-          </div>
+          <select
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">-- selecciona un cliente --</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} — {c.address}
+              </option>
+            ))}
+          </select>
         </label>
-
-        {showNewCustomer && (
-          <div className="subform">
-            <input
-              placeholder="Nombre del cliente"
-              value={newCustomer.name}
-              onChange={(e) => setNewCustomer((v) => ({ ...v, name: e.target.value }))}
-            />
-            <div className="row">
-              <input
-                placeholder="Direccion"
-                value={newCustomer.address}
-                onChange={(e) => setNewCustomer((v) => ({ ...v, address: e.target.value }))}
-              />
-              <button type="button" className="secondary" onClick={handleGeocodeSearch} disabled={geoSearching}>
-                {geoSearching ? "Buscando..." : "Buscar en mapa"}
-              </button>
-            </div>
-            {geoError && <p className="msg-error">{geoError}</p>}
-            {geoResults.length > 0 && (
-              <ul className="geo-results">
-                {geoResults.map((r, i) => (
-                  <li key={i}>
-                    <button type="button" className="secondary" onClick={() => pickGeoResult(r)}>
-                      {r.display_name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="row">
-              <input
-                placeholder="Latitud"
-                value={newCustomer.lat}
-                onChange={(e) => setNewCustomer((v) => ({ ...v, lat: e.target.value }))}
-              />
-              <input
-                placeholder="Longitud"
-                value={newCustomer.lng}
-                onChange={(e) => setNewCustomer((v) => ({ ...v, lng: e.target.value }))}
-              />
-            </div>
-            <input
-              placeholder="Telefono (opcional)"
-              value={newCustomer.phone}
-              onChange={(e) => setNewCustomer((v) => ({ ...v, phone: e.target.value }))}
-            />
-            <button type="button" onClick={handleCreateCustomer}>
-              Guardar cliente
-            </button>
-          </div>
-        )}
 
         <fieldset>
           <legend>Productos</legend>

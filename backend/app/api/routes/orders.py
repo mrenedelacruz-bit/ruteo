@@ -9,6 +9,7 @@ from app.models.customer import Customer
 from app.models.order import Order, OrderLine, OrderStatus
 from app.models.product import Product
 from app.schemas.order import OrderCreate, OrderRead, PromisedDateUpdate
+from app.services.dispatch import run_auto_dispatch
 from app.services.promise_date import compute_promised_date, local_date
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -48,7 +49,11 @@ def create_order(payload: OrderCreate, db: Session = Depends(get_db)):
     )
     db.add(order)
     db.commit()
-    db.refresh(order, attribute_names=["lines"])
+
+    # Asignacion automatica: si con este pedido algun camion queda completo
+    # a capacidad, el viaje se programa solo (visible en Viajes).
+    run_auto_dispatch(db)
+
     return db.scalar(select(Order).options(_LOAD).where(Order.id == order.id))
 
 

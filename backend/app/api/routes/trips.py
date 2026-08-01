@@ -6,6 +6,7 @@ from app.core.db import get_db
 from app.models.order import Order, OrderLine
 from app.models.trip import CompartmentAllocation, Trip, TripStatus, TripStop
 from app.schemas.trip import TripAllocationRead, TripRead, TripStopRead
+from app.services.dispatch import run_auto_dispatch
 from app.services.trip_flow import TripTransitionError, cancel_trip, deliver_stop, start_trip
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -103,6 +104,12 @@ def deliver(trip_id: int, stop_id: int, db: Session = Depends(get_db)):
     except TripTransitionError as exc:
         raise HTTPException(409, str(exc)) from exc
     db.commit()
+
+    # Camion liberado: la demanda pendiente acumulada puede completarlo de
+    # nuevo — correr la asignacion automatica.
+    if trip.status == TripStatus.completed:
+        run_auto_dispatch(db)
+
     return _to_read(_get_trip(trip_id, db))
 
 
