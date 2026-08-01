@@ -1,0 +1,34 @@
+[project]
+name = "ruteo"
+version = "0.1.0"
+description = "Sistema de toma de pedidos, asignacion de flota y ruteo para distribucion de combustible"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "geoalchemy2>=0.15",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.13",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "shapely>=2.0",
+    "httpx>=0.27",
+    "pyjwt>=2.9",
+    "bcrypt>=4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,328 @@
+"""Orquesta la generacion de despachos: toma pedidos pendientes, los asigna a
+la flota disponible (services.assignment) y calcula la ruta de entrega de
+cada camion (services.routing), persistiendo Trip/TripStop/CompartmentAllocation.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
+
+from app.core.geo import point_to_latlng
+from app.models.depot import Depot
+from app.models.order import Order, OrderLine, OrderStatus
+from app.models.product import Product
+from app.models.trip import CompartmentAllocation, Trip, TripStatus, TripStop
+from app.models.truck import Truck, TruckStatus
+from app.schemas.dispatch import (
+    AllocationOut,
+    CompartmentLoadOut,
+    DispatchResult,
+    ShortfallOut,
+    StopOut,
+    TripOut,
+    TruckLoadOut,
+)
+from app.services.assignment import (
+    CompartmentSlot,
+    Demand,
+    TruckSlots,
+    assign_orders_to_fleet,
+    fleet_loading_status,
+)
+from app.services.road_distance import build_osrm_distance_fn
+from app.services.routing import Point, RouteResult, haversine_km, optimize_route
+
+# Un compartimiento flexible (product_id NULL, camiones WOP) admite
+# cualquiera de los productos blancos — y SOLO esos. Nunca Fuel Oil ni
+# Jet A-1, que viajan exclusivamente en compartimientos dedicados.
+WOP_PRODUCT_CODES = ("DIESEL_REGULAR", "DIESEL_PREMIUM", "GASOLINA_REGULAR", "GASOLINA_PREMIUM")
+
+
+def _route_with_best_distances(depot: Point, stops: list[Point]) -> RouteResult:
+    """Rutea con distancias viales reales (OSRM) si el servicio esta
+    disponible; si no, cae a distancia geodesica (haversine)."""
+    osrm_fn = build_osrm_distance_fn([depot, *stops])
+    if osrm_fn is not None:
+        try:
+            return optimize_route(depot, stops, distance_fn=osrm_fn)
+        except ValueError:
+            pass  # algun par de puntos sin ruta vial; usar haversine
+    return optimize_route(depot, stops, distance_fn=haversine_km)
+
+
+def _load_pending_demand_and_active_fleet(
+    db: Session, order_ids: list[int] | None = None
+) -> tuple[list[Order], list[Demand], list[TruckSlots], dict[int, str]]:
+    """Datos compartidos por `generate_dispatch` y `get_fleet_loading_status`:
+    pedidos pendientes (opcionalmente filtrados), su demanda por linea, y
+    los camiones activos con sus compartimientos."""
+    order_stmt = (
+        select(Order)
+        .options(selectinload(Order.lines).selectinload(OrderLine.product), selectinload(Order.customer))
+        .where(Order.status == OrderStatus.pending)
+    )
+    if order_ids is not None:
+        order_stmt = order_stmt.where(Order.id.in_(order_ids))
+    orders = list(db.scalars(order_stmt).all())
+
+    demands = [
+        Demand(order_id=o.id, order_line_id=line.id, product_id=line.product_id, quantity=float(line.quantity))
+        for o in orders
+        for line in o.lines
+    ]
+    line_product_code = {line.id: line.product.code for o in orders for line in o.lines}
+
+    # Un camion con un viaje planificado o en curso ya tiene sus
+    # compartimientos comprometidos con ese viaje: no debe recibir una
+    # segunda asignacion hasta que ese viaje se complete o se cancele.
+    busy_truck_ids = select(Trip.truck_id).where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+
+    trucks = db.scalars(
+        select(Truck)
+        .options(selectinload(Truck.compartments))
+        .where(Truck.status == TruckStatus.active, Truck.id.not_in(busy_truck_ids))
+    ).all()
+
+    wop_product_ids = frozenset(
+        db.scalars(select(Product.id).where(Product.code.in_(WOP_PRODUCT_CODES))).all()
+    )
+    truck_slots = [
+        TruckSlots(
+            truck_id=t.id,
+            truck_code=t.code,
+            compartments=[
+                CompartmentSlot(
+                    compartment_id=c.id,
+                    position=c.position,
+                    capacity=float(c.capacity),
+                    product_id=c.product_id,
+                    allowed_product_ids=wop_product_ids if c.product_id is None else None,
+                )
+                for c in t.compartments
+            ],
+        )
+        for t in trucks
+    ]
+
+    return orders, demands, truck_slots, line_product_code
+
+
+def generate_dispatch(
+    db: Session, depot_id: int, order_ids: list[int] | None
+) -> DispatchResult:
+    depot = db.get(Depot, depot_id)
+    if depot is None:
+        raise ValueError(f"deposito {depot_id} no encontrado")
+
+    orders, demands, truck_slots, line_product_code = _load_pending_demand_and_active_fleet(db, order_ids)
+    orders_by_id = {o.id: o for o in orders}
+
+    result = assign_orders_to_fleet(demands, truck_slots)
+
+    allocations_by_truck: dict[int, list] = {}
+    for alloc in result.allocations:
+        allocations_by_truck.setdefault(alloc.truck_id, []).append(alloc)
+
+    depot_lat, depot_lng = point_to_latlng(depot.location)
+    depot_point = Point(id=0, lat=depot_lat, lng=depot_lng)
+
+    trip_outs: list[TripOut] = []
+    assigned_order_ids: set[int] = set()
+
+    for truck_id, allocs in allocations_by_truck.items():
+        truck_code = allocs[0].truck_code
+        order_ids_for_truck = sorted({a.order_id for a in allocs})
+        assigned_order_ids.update(order_ids_for_truck)
+
+        stop_points = []
+        for oid in order_ids_for_truck:
+            order = orders_by_id[oid]
+            lat, lng = point_to_latlng(order.customer.location)
+            stop_points.append(Point(id=oid, lat=lat, lng=lng))
+
+        route = _route_with_best_distances(depot_point, stop_points)
+
+        trip = Trip(truck_id=truck_id, depot_id=depot_id, total_distance_km=route.total_distance_km)
+        db.add(trip)
+        db.flush()  # obtener trip.id
+
+        for alloc in allocs:
+            db.add(
+                CompartmentAllocation(
+                    trip_id=trip.id,
+                    compartment_id=alloc.compartment_id,
+                    order_line_id=alloc.order_line_id,
+                    quantity=alloc.quantity,
+                )
+            )
+
+        stops_out: list[StopOut] = []
+        for seq, (point, leg_km) in enumerate(zip(route.ordered_stops, route.leg_distances_km), start=1):
+            order = orders_by_id[point.id]
+            order.status = OrderStatus.assigned
+            db.add(TripStop(trip_id=trip.id, order_id=point.id, sequence=seq, distance_from_prev_km=leg_km))
+            stops_out.append(
+                StopOut(
+                    sequence=seq,
+                    order_id=point.id,
+                    customer_name=order.customer.name,
+                    address=order.customer.address,
+                    lat=point.lat,
+                    lng=point.lng,
+                    distance_from_prev_km=leg_km,
+                )
+            )
+
+        trip_outs.append(
+            TripOut(
+                truck_code=truck_code,
+                total_distance_km=route.total_distance_km,
+                allocations=[
+                    AllocationOut(
+                        order_id=a.order_id,
+                        order_line_id=a.order_line_id,
+                        product_code=line_product_code[a.order_line_id],
+                        quantity=a.quantity,
+                        compartment_id=a.compartment_id,
+                        compartment_position=a.compartment_position,
+                    )
+                    for a in allocs
+                ],
+                stops=stops_out,
+            )
+        )
+
+    unassigned_order_ids = sorted({o.id for o in orders} - assigned_order_ids)
+    shortfalls_out = [
+        ShortfallOut(
+            order_id=s.order_id,
+            order_line_id=s.order_line_id,
+            product_code=line_product_code[s.order_line_id],
+            quantity=s.quantity,
+        )
+        for s in result.shortfalls
+    ]
+
+    db.commit()
+
+    return DispatchResult(trips=trip_outs, unassigned_order_ids=unassigned_order_ids, shortfalls=shortfalls_out)
+
+
+def run_auto_dispatch(db: Session) -> DispatchResult | None:
+    """Asignacion automatica: corre el despacho con todos los pedidos
+    pendientes contra el (unico) deposito. Se invoca al crear un pedido y
+    al completarse un viaje (camion liberado); NO al cancelar un viaje —
+    si el despachador cancela porque el camion se averio, re-crear el
+    mismo viaje al instante seria un bucle inutil (en ese caso, marcar el
+    camion en mantenimiento y usar el despacho manual si hace falta).
+    Nunca lanza: un fallo aqui no debe romper la operacion que lo disparo.
+    """
+    import logging
+
+    depot_id = db.scalar(select(Depot.id).order_by(Depot.id).limit(1))
+    if depot_id is None:
+        return None
+    try:
+        return generate_dispatch(db, depot_id=depot_id, order_ids=None)
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("auto-despacho fallo; continua sin despachar")
+        db.rollback()
+        return None
+
+
+def get_fleet_loading_status(db: Session) -> list[TruckLoadOut]:
+    """Vista de solo lectura (no persiste nada). Dos grupos de camiones:
+    - Con un viaje planificado/en curso: se muestra su carga REAL (ya
+      comprometida con ese viaje, ver pestaña Viajes) — no participan en
+      la vista previa de demanda pendiente (ver `_load_pending_demand_and_active_fleet`).
+    - El resto: vista previa de como van llenandose sus compartimientos
+      con la demanda pendiente actual, y cuanto le falta al que no esta
+      listo.
+    """
+    _, demands, truck_slots, _ = _load_pending_demand_and_active_fleet(db)
+    product_code_by_id = dict(db.execute(select(Product.id, Product.code)).all())
+    operation_by_code = dict(db.execute(select(Truck.code, Truck.operation)).all())
+
+    statuses = fleet_loading_status(demands, truck_slots)
+
+    results = [
+        TruckLoadOut(
+            truck_code=t.truck_code,
+            operation=operation_by_code.get(t.truck_code),
+            total_capacity=t.total_capacity,
+            ready_to_dispatch=t.ready_to_dispatch,
+            on_active_trip=False,
+            compartments=[
+                CompartmentLoadOut(
+                    compartment_id=c.compartment.compartment_id,
+                    position=c.compartment.position,
+                    capacity=c.compartment.capacity,
+                    dedicated_product_code=product_code_by_id.get(c.compartment.product_id)
+                    if c.compartment.product_id is not None
+                    else None,
+                    filled=c.filled,
+                    product_code=product_code_by_id.get(c.candidate_product_id)
+                    if c.candidate_product_id is not None
+                    else None,
+                    quantity_available=c.quantity_available,
+                    quantity_missing=c.quantity_missing,
+                )
+                for c in t.compartments
+            ],
+        )
+        for t in statuses
+    ]
+
+    busy_trucks = db.scalars(
+        select(Truck)
+        .options(selectinload(Truck.compartments))
+        .join(Trip, Trip.truck_id == Truck.id)
+        .where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+        .distinct()
+    ).all()
+    if busy_trucks:
+        allocations = db.scalars(
+            select(CompartmentAllocation)
+            .join(Trip, Trip.id == CompartmentAllocation.trip_id)
+            .options(selectinload(CompartmentAllocation.order_line).selectinload(OrderLine.product))
+            .where(Trip.status.in_([TripStatus.planned, TripStatus.in_progress]))
+        ).all()
+        # Un compartimiento puede llevar varias lineas (del mismo producto,
+        # p.ej. dos pedidos combinados): sumar sus cantidades.
+        qty_by_compartment: dict[int, float] = {}
+        product_by_compartment: dict[int, str] = {}
+        for a in allocations:
+            qty_by_compartment[a.compartment_id] = qty_by_compartment.get(a.compartment_id, 0.0) + float(a.quantity)
+            product_by_compartment[a.compartment_id] = a.order_line.product.code
+
+        for truck in busy_trucks:
+            compartments = []
+            for c in truck.compartments:
+                qty = qty_by_compartment.get(c.id)
+                compartments.append(
+                    CompartmentLoadOut(
+                        compartment_id=c.id,
+                        position=c.position,
+                        capacity=float(c.capacity),
+                        dedicated_product_code=product_code_by_id.get(c.product_id)
+                        if c.product_id is not None
+                        else None,
+                        filled=qty is not None,
+                        product_code=product_by_compartment.get(c.id),
+                        quantity_available=qty if qty is not None else 0.0,
+                        quantity_missing=0.0 if qty is not None else float(c.capacity),
+                    )
+                )
+            results.append(
+                TruckLoadOut(
+                    truck_code=truck.code,
+                    operation=truck.operation,
+                    total_capacity=float(truck.total_capacity),
+                    ready_to_dispatch=False,
+                    on_active_trip=True,
+                    compartments=compartments,
+                )
+            )
+
+    return results
