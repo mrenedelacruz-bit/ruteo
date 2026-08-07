@@ -107,6 +107,16 @@ const SEMILLA: BienNuevo[] = [
     usuario_asignado: 'Mantenimiento',
     ubicacion_descriptiva: 'Patio trasero',
   },
+  {
+    nombre: 'Archivador metálico 4 gavetas',
+    descripcion: 'Sin novedad en la última auditoría.',
+    categoria: 'Mobiliario',
+    estado: 'Bueno',
+    latitud: 18.4707,
+    longitud: -69.934,
+    usuario_asignado: 'Recursos Humanos',
+    ubicacion_descriptiva: 'Torre A — Piso 2',
+  },
 ]
 
 // --------------------------------------------------------------------------- //
@@ -122,7 +132,18 @@ export class LocalRepo implements Repositorio {
     if (localStorage.getItem(CLAVE_SEMBRADO)) return
     localStorage.setItem(CLAVE_SEMBRADO, ahora())
     if (leer<BienMueble>(CLAVE_BIENES).length > 0) return
-    for (const ejemplo of SEMILLA) void this.crear(ejemplo)
+
+    // Se acumula en memoria y se escribe una sola vez. Llamar a `crear()` en un
+    // bucle no serviría: cada llamada relee localStorage al empezar, así que
+    // varias altas seguidas parten todas del mismo estado inicial y solo
+    // sobrevive la última.
+    const bienes: BienMueble[] = []
+    const eventos: Auditoria[] = []
+    for (const ejemplo of SEMILLA) {
+      bienes.push(this.construir(ejemplo, bienes, eventos))
+    }
+    escribir(CLAVE_BIENES, bienes)
+    escribir(CLAVE_AUDITORIAS, eventos)
   }
 
   private bienes(): BienMueble[] {
@@ -170,8 +191,8 @@ export class LocalRepo implements Repositorio {
     return conUrl(bien)
   }
 
-  async siguienteNCF(categoria: CategoriaBien): Promise<string> {
-    const existentes = new Set(this.bienes().map((b) => b.ncf))
+  /** Primer correlativo de la categoría que no choque con `existentes`. */
+  private proximoNCF(categoria: CategoriaBien, existentes: Set<string>): string {
     for (let secuencia = 1; secuencia <= 9999; secuencia++) {
       const candidato = generarNCF(categoria, secuencia)
       if (!existentes.has(candidato)) return candidato
@@ -179,11 +200,23 @@ export class LocalRepo implements Repositorio {
     throw new Error('Se agotaron los correlativos del mes para esta categoría.')
   }
 
-  async crear(datos: BienNuevo): Promise<BienMueble> {
-    const lista = this.bienes()
+  async siguienteNCF(categoria: CategoriaBien): Promise<string> {
+    return this.proximoNCF(categoria, new Set(this.bienes().map((b) => b.ncf)))
+  }
+
+  /**
+   * Construye el bien y su evento de alta **contra las listas que se le pasan**,
+   * no contra localStorage. Así el llamador controla cuándo se persiste y puede
+   * encadenar varias altas sin que se pisen entre sí.
+   */
+  private construir(
+    datos: BienNuevo,
+    bienes: BienMueble[],
+    eventos: Auditoria[],
+  ): BienMueble {
     const bien: BienMueble = {
-      id: lista.reduce((max, b) => Math.max(max, b.id), 0) + 1,
-      ncf: await this.siguienteNCF(datos.categoria),
+      id: bienes.reduce((max, b) => Math.max(max, b.id), 0) + 1,
+      ncf: this.proximoNCF(datos.categoria, new Set(bienes.map((b) => b.ncf))),
       nombre: datos.nombre,
       descripcion: datos.descripcion ?? null,
       categoria: datos.categoria,
@@ -199,9 +232,9 @@ export class LocalRepo implements Repositorio {
       actualizado_en: ahora(),
       url_etiqueta: null,
     }
-    escribir(CLAVE_BIENES, [...lista, bien])
 
-    this.registrarEvento({
+    eventos.push({
+      id: eventos.reduce((max, e) => Math.max(max, e.id), 0) + 1,
       bien_id: bien.id,
       ncf: bien.ncf,
       tipo: 'Alta',
@@ -210,7 +243,19 @@ export class LocalRepo implements Repositorio {
       precision_gps_m: bien.precision_gps_m,
       usuario: bien.usuario_asignado,
       nota: 'Alta en inventario',
+      registrado_en: ahora(),
     })
+
+    return bien
+  }
+
+  async crear(datos: BienNuevo): Promise<BienMueble> {
+    const bienes = this.bienes()
+    const eventos = this.auditorias()
+    const bien = this.construir(datos, bienes, eventos)
+
+    escribir(CLAVE_BIENES, [...bienes, bien])
+    escribir(CLAVE_AUDITORIAS, eventos)
     return conUrl(bien)
   }
 
