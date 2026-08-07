@@ -11,7 +11,7 @@ import { useEffect, useMemo } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
-import { CENTRO_POR_DEFECTO, ZOOM_POR_DEFECTO } from '../config'
+import { CENTRO_POR_DEFECTO, TILE_URL, ZOOM_POR_DEFECTO } from '../config'
 import { COLOR_ESTADO } from '../lib/estilos'
 import { ESTADOS, type BienMueble, type EstadoBien } from '../types'
 import { TarjetaActivo } from './TarjetaActivo'
@@ -84,11 +84,15 @@ export function MapaBienes({ bienes, resaltado, alActualizarBien }: Props) {
         zoomControl={false} // en móvil estorba; se navega con gestos
         scrollWheelZoom
       >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          maxZoom={19}
-        />
+        {/* Sin TILE_URL no hay base cartográfica: los pines conservan su posición
+            geográfica real, solo falta el relieve debajo. Ver config.ts. */}
+        {TILE_URL && (
+          <TileLayer
+            url={TILE_URL}
+            attribution='&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            maxZoom={19}
+          />
+        )}
 
         <Encuadre bienes={conUbicacion} resaltado={resaltado} />
 
@@ -104,6 +108,12 @@ export function MapaBienes({ bienes, resaltado, alActualizarBien }: Props) {
           </Marker>
         ))}
       </MapContainer>
+
+      {!TILE_URL && (
+        <div className="leyenda" style={{ left: 10, right: 10, bottom: 'auto', top: 10 }}>
+          <span>Sin base cartográfica — los pines están en su posición real</span>
+        </div>
+      )}
 
       <div className="leyenda" aria-label="Leyenda de estados">
         {ESTADOS.map((estado) => (

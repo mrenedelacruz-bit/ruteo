@@ -5,11 +5,13 @@
  * con el hot reload de Vite y produce depuraciones desconcertantes.
  */
 
-import { BASE_URL } from '../config'
+import { BASE_URL, SW_ACTIVO } from '../config'
 
 export function registrarServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return
   if (import.meta.env.DEV) return
+  // Compilaciones de un solo archivo (demo, copia local) no publican sw.js.
+  if (!SW_ACTIVO) return
 
   window.addEventListener('load', () => {
     navigator.serviceWorker

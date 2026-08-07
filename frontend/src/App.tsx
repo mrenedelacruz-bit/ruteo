@@ -1,19 +1,22 @@
 /**
  * Raíz de la aplicación: enrutado y estructura común.
  *
- * Se usa `BrowserRouter` y no `HashRouter` porque la URL grabada en la etiqueta
- * tiene que ser limpia (`/activo/NCF-…`, no `/#/activo/NCF-…`): cada carácter
- * cuenta en una NTAG213 y, sobre todo, algunos lectores y validadores de NDEF
- * tratan el fragmento de forma inconsistente. El precio es que el servidor debe
- * devolver el index.html en cualquier ruta; en GitHub Pages eso lo resuelve la
- * copia `404.html` que genera `scripts/postbuild.mjs`.
+ * Por defecto se usa `BrowserRouter`, porque la URL grabada en la etiqueta
+ * conviene que sea limpia (`/activo/NCF-…`, no `/#/activo/NCF-…`): cada carácter
+ * cuenta en una NTAG213 y algunos validadores de NDEF tratan el fragmento de
+ * forma inconsistente. El precio es que el servidor debe devolver el index.html
+ * en cualquier ruta; en GitHub Pages eso lo resuelve la copia `404.html` que
+ * genera `scripts/postbuild.mjs`.
+ *
+ * Donde ese reenvío no se pueda configurar, `VITE_ROUTER=hash` cambia a
+ * `HashRouter` y la app funciona igual sobre cualquier hosting estático.
  */
 
 import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { BarraNavegacion } from './components/BarraNavegacion'
-import { BASE_URL, MODO_LOCAL } from './config'
+import { BASE_URL, MODO_HASH, MODO_LOCAL } from './config'
 import { useEnLinea } from './hooks/useBienes'
 import { leerOutbox, vaciarOutbox } from './lib/repo'
 import { ActivoPage } from './pages/ActivoPage'
@@ -48,6 +51,9 @@ function Cinta() {
   return null
 }
 
+// Ver `MODO_HASH` en config.ts para cuándo conviene cada uno.
+const Router = MODO_HASH ? HashRouter : BrowserRouter
+
 export function App() {
   const enLinea = useEnLinea()
 
@@ -59,7 +65,8 @@ export function App() {
 
   return (
     // `basename` viene de Vite: '/ruteo/' en Pages, '/' en un dominio propio.
-    <BrowserRouter basename={BASE_URL}>
+    // HashRouter no lo necesita: la ruta va tras el '#', fuera del path.
+    <Router {...(MODO_HASH ? {} : { basename: BASE_URL })}>
       <div className="app">
         <Cinta />
         <main className="contenido">
@@ -75,6 +82,6 @@ export function App() {
         </main>
         <BarraNavegacion />
       </div>
-    </BrowserRouter>
+    </Router>
   )
 }
