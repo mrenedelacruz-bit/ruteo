@@ -1,0 +1,56 @@
+# Publica la PWA en GitHub Pages.
+#
+# El sitio queda en https://<usuario>.github.io/ruteo/ , que es la base de las
+# URLs grabadas en las etiquetas NFC. Si se cambia el repositorio o se pasa a un
+# dominio propio hay que ajustar VITE_BASE — y las etiquetas ya grabadas dejarán
+# de resolver (ver docs/GUIA-NFC-IPHONE.md, sección 6).
+name: Desplegar PWA en GitHub Pages
+
+on:
+  push:
+    branches: [main, claude/nfc-asset-management-pwa-wtyyrb]
+    paths: ['frontend/**', '.github/workflows/pages.yml']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Sin VITE_API_BASE la app se publica en modo local (localStorage). Para
+      # apuntar a un backend desplegado, defínala como variable del repositorio.
+      - run: npm run build
+        env:
+          VITE_BASE: /ruteo/
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

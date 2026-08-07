@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!--
+      viewport-fit=cover + las variables env(safe-area-inset-*) del CSS evitan
+      que la barra inferior quede bajo el indicador de inicio del iPhone.
+      user-scalable=no impide el zoom accidental al tocar dos veces un pin.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+
+    <title>Bienes NFC — Inventario y geolocalización</title>
+    <meta
+      name="description"
+      content="Inventario, auditoría y geolocalización de bienes muebles mediante etiquetas NFC."
+    />
+
+    <!--
+      Rutas absolutas, no relativas: Vite les antepone `base` al compilar y así
+      siguen resolviendo bien en /ruteo/activo/NCF-... (donde un "./" apuntaría
+      a /ruteo/activo/ y rompería el manifest y los íconos).
+    -->
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#111827" />
+
+    <!--
+      iOS ignora casi todo el manifest. Estas tres metas son las que hacen que
+      "Agregar a pantalla de inicio" abra la app sin barra de Safari.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bienes NFC" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+# Node
+node_modules/
+dist/
+*.local
+.env.local
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+
+# Base de datos del prototipo
+*.db
+
+# Sistema
+.DS_Store
+
+# Artefactos de compilación de TypeScript
+*.tsbuildinfo
+
+dist-demo/
