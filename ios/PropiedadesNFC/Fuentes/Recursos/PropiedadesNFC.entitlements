@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Requiere la capability "Near Field Communication Tag Reading" activada
+	  en el App ID del portal de desarrolladores. Sin eso, el perfil de
+	  aprovisionamiento no incluye el entitlement y la sesión falla al iniciar.
+	-->
+	<key>com.apple.developer.nfc.readersession.formats</key>
+	<array>
+		<string>NDEF</string>
+	</array>
+
+	<!--
+	  Necesario solo para que el tap en background abra la app desde el
+	  registro URI de respaldo. Debe coincidir con PayloadPropiedad.dominioRespaldo
+	  y el dominio debe servir /.well-known/apple-app-site-association.
+	  Si no vas a publicar ese dominio, elimina esta clave: un applinks roto
+	  no rompe la lectura NFC explícita, pero deja un warning permanente.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:propiedades.upgh.app</string>
+	</array>
+</dict>
+</plist>

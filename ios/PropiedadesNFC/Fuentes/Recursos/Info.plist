@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Core NFC: sin esta clave la app CRASHEA al abrir la sesión, no falla suave. -->
+	<key>NFCReaderUsageDescription</key>
+	<string>Se usa el lector NFC para identificar y rotular propiedades mediante etiquetas adheridas en sitio.</string>
+
+	<!-- Formatos NDEF que la app espera encontrar en background tag reading. -->
+	<key>com.apple.developer.nfc.readersession.formats</key>
+	<array>
+		<string>NDEF</string>
+	</array>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Se usa el GPS para georreferenciar cada propiedad en el momento del levantamiento de campo.</string>
+
+	<key>UILaunchScreen</key>
+	<dict/>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+
+	<!-- Filtro de capacidad: el App Store no ofrecerá la app a dispositivos sin NFC. -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+		<string>nfc</string>
+		<string>location-services</string>
+		<string>gps</string>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,161 @@
+import SwiftUI
+import SwiftData
+import MapKit
+
+struct DetallePropiedadView: View {
+    @Bindable var propiedad: Propiedad
+
+    @Environment(\.modelContext) private var contexto
+    @Environment(\.dismiss) private var cerrar
+    @EnvironmentObject private var servicioNFC: ServicioNFC
+    @EnvironmentObject private var ubicacion: ServicioUbicacion
+
+    @State private var error: ErrorPresentable?
+    @State private var confirmandoReubicacion = false
+    @State private var mensajeExito: String?
+
+    var body: some View {
+        Form {
+            Section("Identificación") {
+                TextField("Código", text: $propiedad.codigo)
+                TextField("Nombre", text: $propiedad.nombre)
+                Picker("Estado", selection: Binding(
+                    get: { propiedad.estado },
+                    set: { propiedad.estado = $0; propiedad.actualizadoEn = .now }
+                )) {
+                    ForEach(EstadoPropiedad.allCases, id: \.self) { estado in
+                        Text(estado.titulo).tag(estado)
+                    }
+                }
+            }
+
+            Section("Ubicación") {
+                Map(initialPosition: .region(regionDetalle)) {
+                    Marker(propiedad.codigo, coordinate: propiedad.coordenada)
+                }
+                .frame(height: 160)
+                .listRowInsets(EdgeInsets())
+                .allowsHitTesting(false)
+
+                LabeledContent("Latitud", value: String(format: "%.7f", propiedad.latitud))
+                LabeledContent("Longitud", value: String(format: "%.7f", propiedad.longitud))
+                LabeledContent("Precisión", value: String(format: "±%.1f m", propiedad.precisionHorizontal))
+                if let altitud = propiedad.altitud {
+                    LabeledContent("Altitud", value: String(format: "%.1f m", altitud))
+                }
+                Button("Reubicar en mi posición actual") { confirmandoReubicacion = true }
+                    .disabled(ubicacion.capturando)
+            }
+
+            Section {
+                if servicioNFC.disponible {
+                    Button {
+                        Task { await grabarEtiqueta() }
+                    } label: {
+                        Label(
+                            propiedad.etiquetaEscritaEn == nil ? "Grabar etiqueta NFC" : "Regrabar etiqueta NFC",
+                            systemImage: "wave.3.right.circle"
+                        )
+                    }
+                    .disabled(servicioNFC.operacionEnCurso)
+                } else {
+                    Label("NFC no disponible en este dispositivo", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
+
+                if let escritaEn = propiedad.etiquetaEscritaEn {
+                    LabeledContent("Grabada", value: escritaEn.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let serial = propiedad.etiquetaSerial {
+                    LabeledContent("Serial", value: serial)
+                }
+            } header: {
+                Text("Etiqueta NFC")
+            } footer: {
+                Text("Se graban \((try? propiedad.payloadNFC.tamanoEstimado()) ?? 0) bytes. Verifica que la etiqueta tenga capacidad suficiente (NTAG213 = 137 B útiles).")
+            }
+
+            Section("Trazabilidad") {
+                LabeledContent("Capturada", value: propiedad.capturadoEn.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Actualizada", value: propiedad.actualizadoEn.formatted(date: .abbreviated, time: .shortened))
+                TextField("Notas", text: $propiedad.notas, axis: .vertical).lineLimit(2...8)
+            }
+        }
+        .navigationTitle(propiedad.codigo)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Listo") { guardar(); cerrar() }
+            }
+        }
+        .confirmationDialog(
+            "Se sustituirán las coordenadas actuales por tu posición GPS. El valor anterior queda registrado en las notas.",
+            isPresented: $confirmandoReubicacion,
+            titleVisibility: .visible
+        ) {
+            Button("Reubicar", role: .destructive) { Task { await reubicar() } }
+            Button("Cancelar", role: .cancel) {}
+        }
+        .alert(item: $error) { error in
+            Alert(title: Text("Error"), message: Text(error.mensaje), dismissButton: .default(Text("Entendido")))
+        }
+        .alert("Listo", isPresented: Binding(
+            get: { mensajeExito != nil },
+            set: { if !$0 { mensajeExito = nil } }
+        )) {
+            Button("OK") { mensajeExito = nil }
+        } message: {
+            Text(mensajeExito ?? "")
+        }
+    }
+
+    private var regionDetalle: MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: propiedad.coordenada,
+            span: MKCoordinateSpan(latitudeDelta: 0.003, longitudeDelta: 0.003)
+        )
+    }
+
+    private func grabarEtiqueta() async {
+        do {
+            try await servicioNFC.escribir(propiedad.payloadNFC)
+            propiedad.registrarEscrituraNFC()
+            guardar()
+            mensajeExito = "Etiqueta grabada y propiedad marcada como activa."
+        } catch let fallo as ErrorNFC {
+            guard !fallo.esSilencioso else { return }
+            error = ErrorPresentable(mensaje: fallo.errorDescription ?? "Error al grabar")
+        } catch {
+            self.error = ErrorPresentable(mensaje: error.localizedDescription)
+        }
+    }
+
+    private func reubicar() async {
+        do {
+            let fix = try await ubicacion.capturar()
+            // Auditoría: se conserva el valor anterior en texto plano antes
+            // de sobrescribir. Sin esto, un error de campo es irreversible.
+            let anterior = String(
+                format: "[%@] Reubicada desde %.7f, %.7f (±%.0f m)",
+                Date.now.formatted(date: .numeric, time: .shortened),
+                propiedad.latitud, propiedad.longitud, propiedad.precisionHorizontal
+            )
+            propiedad.reubicar(a: fix, nota: anterior)
+            guardar()
+            mensajeExito = String(format: "Posición actualizada con ±%.1f m de precisión.", fix.horizontalAccuracy)
+        } catch is CancellationError {
+            return
+        } catch {
+            self.error = ErrorPresentable(mensaje: error.localizedDescription)
+        }
+    }
+
+    private func guardar() {
+        propiedad.actualizadoEn = .now
+        do {
+            try contexto.save()
+        } catch {
+            self.error = ErrorPresentable(mensaje: "No se pudo guardar: \(error.localizedDescription)")
+        }
+    }
+}
