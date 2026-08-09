@@ -1,0 +1,845 @@
+<title>PropiedadesNFC · Prototipo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* ============================================================
+   PropiedadesNFC — prototipo web
+   Paleta "equipo de campo": piedra-salvia (plano topográfico),
+   naranja quemado (acción/chaleco), pino (estados activos).
+   Tipografía del sistema Apple a propósito: el prototipo
+   previsualiza una app iOS nativa y ese es su material real.
+   ============================================================ */
+:root{
+  --ground:#ECEFEA; --surface:#FFFFFF; --surface2:#F4F6F3;
+  --ink:#1C2420; --ink2:#5B675F; --line:#D7DDD6;
+  --accent:#C6511F; --accent-ink:#FFFFFF;
+  --ok:#2E6B54; --warn:#A26E06; --bad:#B3362B; --bad-ink:#FFFFFF;
+  --chip:#E3E8E2; --map-grid:#DCE2DB; --map-water:#E2E9E6;
+  --shadow:0 18px 50px rgba(28,36,32,.18);
+  --sans:-apple-system,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#10160F; --surface:#1A211C; --surface2:#212A24;
+    --ink:#E8EDE8; --ink2:#9AA69E; --line:#2E3833;
+    --accent:#E87B45; --accent-ink:#20130A;
+    --ok:#6BB893; --warn:#D9A441; --bad:#E07463; --bad-ink:#2A100C;
+    --chip:#273029; --map-grid:#28322B; --map-water:#1D2622;
+    --shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#10160F; --surface:#1A211C; --surface2:#212A24;
+  --ink:#E8EDE8; --ink2:#9AA69E; --line:#2E3833;
+  --accent:#E87B45; --accent-ink:#20130A;
+  --ok:#6BB893; --warn:#D9A441; --bad:#E07463; --bad-ink:#2A100C;
+  --chip:#273029; --map-grid:#28322B; --map-water:#1D2622;
+  --shadow:0 18px 50px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box; margin:0}
+html,body{height:100%}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:var(--sans); -webkit-font-smoothing:antialiased;
+  display:flex; flex-direction:column; align-items:center;
+}
+.page-head{
+  max-width:430px; width:100%; padding:26px 22px 12px;
+  display:none;
+}
+.page-head h1{font-size:17px; font-weight:700; letter-spacing:-.01em}
+.page-head p{font-size:13px; color:var(--ink2); margin-top:4px; line-height:1.45}
+@media (min-width:720px){
+  .page-head{display:block; text-align:center}
+  .phone{
+    border-radius:34px; box-shadow:var(--shadow);
+    border:1px solid var(--line);
+    height:min(860px, calc(100vh - 140px)); margin-bottom:40px;
+  }
+}
+.phone{
+  width:100%; max-width:430px; background:var(--surface);
+  display:flex; flex-direction:column; overflow:hidden; position:relative;
+  height:100dvh;
+}
+
+/* ---------- barra superior ---------- */
+.appbar{
+  padding:14px 16px 10px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+  background:var(--surface);
+}
+.appbar .titles{flex:1; min-width:0}
+.appbar h2{font-size:16px; font-weight:700; letter-spacing:-.01em}
+.appbar .sub{font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.08em}
+.iconbtn{
+  border:1px solid var(--line); background:var(--surface2); color:var(--ink);
+  width:38px; height:38px; border-radius:12px; font-size:17px;
+  display:grid; place-items:center; cursor:pointer; flex-shrink:0;
+}
+.iconbtn.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+.iconbtn:focus-visible,.btn:focus-visible,.tabbar button:focus-visible,.tagchip:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+
+/* ---------- contenido ---------- */
+main{flex:1; overflow-y:auto; overscroll-behavior:contain; background:var(--surface)}
+.view{display:none; padding:16px; min-height:100%}
+.view.active{display:block}
+.hintbox{
+  background:var(--surface2); border:1px solid var(--line); border-radius:12px;
+  padding:10px 12px; font-size:12.5px; color:var(--ink2); line-height:1.5; margin-bottom:14px;
+}
+.hintbox b{color:var(--ink)}
+
+/* ---------- mapa ---------- */
+.mapwrap{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--map-water)}
+.mapwrap svg{display:block; width:100%; height:auto}
+.map-note{font-size:11px; color:var(--ink2); margin-top:8px; text-align:center}
+.marker{cursor:pointer}
+.marker text{font-family:var(--mono); font-size:10px; fill:var(--ink)}
+
+/* ---------- listas ---------- */
+.card{
+  border:1px solid var(--line); border-radius:14px; background:var(--surface);
+  padding:12px 14px; margin-bottom:10px; display:flex; gap:12px; align-items:center;
+  cursor:pointer; width:100%; text-align:left; font-family:inherit; color:inherit; font-size:inherit;
+}
+.card .dot{width:11px; height:11px; border-radius:50%; flex-shrink:0}
+.card .body{flex:1; min-width:0}
+.card .name{font-weight:600; font-size:15px}
+.card .meta{font-size:12px; color:var(--ink2); margin-top:2px; font-family:var(--mono)}
+.card .right{text-align:right; font-size:11.5px; color:var(--ink2); flex-shrink:0}
+.card .right .warn{color:var(--warn)}
+.pill{
+  display:inline-block; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
+  padding:3px 8px; border-radius:999px; background:var(--chip); color:var(--ink2); font-weight:600;
+}
+.pill.activa{background:var(--ok); color:var(--surface)}
+.pill.sinEtiqueta{background:var(--warn); color:var(--surface)}
+.pill.baja{background:var(--bad); color:var(--bad-ink)}
+.empty{color:var(--ink2); font-size:13.5px; text-align:center; padding:44px 20px; line-height:1.6}
+
+/* ---------- etiquetas (mesa) ---------- */
+.tagrow{
+  border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:10px;
+  display:flex; align-items:center; gap:12px; background:var(--surface);
+}
+.tagrow .glyph{font-size:20px; flex-shrink:0}
+.tagrow .serial{font-family:var(--mono); font-size:12.5px}
+.tagrow .desc{font-size:12px; color:var(--ink2); margin-top:2px}
+.tagrow .actions{margin-left:auto; display:flex; gap:6px}
+.minibtn{
+  border:1px solid var(--line); background:var(--surface2); color:var(--ink);
+  font-size:12px; padding:6px 10px; border-radius:9px; cursor:pointer; font-family:inherit;
+}
+.btn{
+  display:block; width:100%; border:none; border-radius:13px; padding:13px;
+  font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; margin-top:10px;
+  background:var(--surface2); color:var(--ink); border:1px solid var(--line);
+}
+.btn.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+.btn.danger{background:transparent; color:var(--bad); border-color:var(--bad)}
+.btn:disabled{opacity:.45; cursor:default}
+
+/* ---------- checklist ---------- */
+.check{
+  display:flex; gap:10px; align-items:flex-start; padding:10px 4px;
+  border-bottom:1px solid var(--line); font-size:13.5px; line-height:1.45;
+}
+.check .box{
+  width:20px; height:20px; border-radius:7px; border:1.5px solid var(--line);
+  flex-shrink:0; display:grid; place-items:center; font-size:12px; margin-top:1px;
+  color:var(--surface);
+}
+.check.done .box{background:var(--ok); border-color:var(--ok)}
+.check.done{color:var(--ink2)}
+.check .sec{font-size:10.5px; color:var(--ink2); font-family:var(--mono)}
+.progress{
+  height:8px; border-radius:99px; background:var(--chip); overflow:hidden; margin:10px 0 16px;
+}
+.progress i{display:block; height:100%; background:var(--ok); width:0%; transition:width .4s}
+
+/* ---------- tab bar ---------- */
+.tabbar{
+  display:flex; border-top:1px solid var(--line); background:var(--surface);
+  flex-shrink:0; padding-bottom:env(safe-area-inset-bottom);
+}
+.tabbar button{
+  flex:1; background:none; border:none; padding:9px 4px 10px; cursor:pointer;
+  font-family:inherit; font-size:10.5px; color:var(--ink2);
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+}
+.tabbar button .ico{font-size:19px; line-height:1}
+.tabbar button.active{color:var(--accent); font-weight:600}
+
+/* ---------- hojas (sheets) ---------- */
+.backdrop{
+  position:absolute; inset:0; background:rgba(10,14,12,.45); opacity:0;
+  pointer-events:none; transition:opacity .25s; z-index:30;
+}
+.backdrop.show{opacity:1; pointer-events:auto}
+.sheet{
+  position:absolute; left:0; right:0; bottom:0; z-index:40;
+  background:var(--surface); border-radius:22px 22px 0 0;
+  transform:translateY(105%); transition:transform .3s cubic-bezier(.32,.72,.32,1);
+  max-height:88%; display:flex; flex-direction:column;
+  box-shadow:0 -10px 40px rgba(0,0,0,.25);
+}
+.sheet.show{transform:translateY(0)}
+.sheet .grab{width:38px; height:5px; border-radius:99px; background:var(--line); margin:9px auto 0; flex-shrink:0}
+.sheet .sc{overflow-y:auto; padding:14px 18px 26px}
+.sheet h3{font-size:17px; font-weight:700; margin-bottom:2px}
+.sheet .subt{font-size:12.5px; color:var(--ink2); margin-bottom:14px}
+.field{margin-bottom:12px}
+.field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink2); margin-bottom:5px}
+.field input,.field textarea,.field select{
+  width:100%; border:1px solid var(--line); background:var(--surface2); color:var(--ink);
+  border-radius:11px; padding:11px 12px; font-size:15px; font-family:inherit;
+}
+.field textarea{resize:vertical; min-height:60px}
+.kv{display:flex; justify-content:space-between; gap:14px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px}
+.kv .k{color:var(--ink2)}
+.kv .v{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; word-break:break-all}
+.kv .v.good{color:var(--ok)} .kv .v.meh{color:var(--warn)}
+
+/* ---------- hoja NFC (recreación de la hoja del sistema iOS) ---------- */
+.nfc-stage{text-align:center; padding:6px 0 2px}
+.nfc-icon{width:96px; height:96px; margin:8px auto 14px; position:relative}
+.nfc-icon .phoneish{
+  position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
+  width:34px; height:56px; border:3px solid var(--ink); border-radius:8px;
+}
+.nfc-icon .wave{
+  position:absolute; left:50%; top:6px; transform:translateX(-50%);
+  width:14px; height:14px; border:3px solid var(--accent); border-radius:50%;
+  border-bottom-color:transparent; border-left-color:transparent; rotate:-45deg;
+  animation:wave 1.6s infinite;
+}
+.nfc-icon .wave:nth-child(2){width:28px; height:28px; top:-2px; animation-delay:.25s}
+.nfc-icon .wave:nth-child(3){width:42px; height:42px; top:-10px; animation-delay:.5s}
+@keyframes wave{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .nfc-icon .wave{animation:none; opacity:.8}
+  .sheet{transition:none} .backdrop{transition:none}
+}
+.nfc-msg{font-size:15px; font-weight:600; min-height:42px; padding:0 8px; line-height:1.4}
+.nfc-msg.err{color:var(--bad)} .nfc-msg.okc{color:var(--ok)}
+.tagpick{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px}
+.tagchip{
+  border:1px solid var(--line); background:var(--surface2); border-radius:12px;
+  padding:10px; cursor:pointer; text-align:left; font-family:inherit; color:inherit;
+}
+.tagchip .t{font-size:16px}
+.tagchip .s{font-family:var(--mono); font-size:10.5px; display:block; margin-top:3px; color:var(--ink2); word-break:break-all}
+.tagchip .d{font-size:11px; margin-top:2px}
+.tagpick-title{font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink2); margin-top:16px; text-align:left}
+
+/* ---------- gps ---------- */
+.gpsline{display:flex; align-items:center; gap:12px; padding:12px; background:var(--surface2); border:1px solid var(--line); border-radius:12px}
+.spinner{width:20px; height:20px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--accent); animation:spin 1s linear infinite; flex-shrink:0}
+@keyframes spin{to{rotate:360deg}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none}}
+.gpsline .acc{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.switchrow{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13.5px; padding:10px 2px}
+.switchrow input{width:20px; height:20px; accent-color:var(--accent)}
+
+/* ---------- datos ---------- */
+.mono-block{
+  font-family:var(--mono); font-size:11px; background:var(--surface2);
+  border:1px solid var(--line); border-radius:11px; padding:10px;
+  overflow-x:auto; white-space:pre; margin-top:8px; line-height:1.5;
+}
+.report{font-size:13px; line-height:1.6; margin-top:10px; white-space:pre-wrap}
+
+/* ---------- toast ---------- */
+.toast{
+  position:absolute; left:50%; bottom:86px; transform:translateX(-50%) translateY(20px);
+  background:var(--ink); color:var(--ground); font-size:13px; padding:10px 16px;
+  border-radius:99px; opacity:0; transition:.3s; z-index:60; pointer-events:none;
+  max-width:86%; text-align:center;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+
+<div class="page-head">
+  <h1>PropiedadesNFC — prototipo web</h1>
+  <p>Simulación del flujo de la app iOS: captura GPS, etiquetado NFC virtual y export GeoJSON real.
+     En el iPhone, ábrelo a pantalla completa. NFC y GPS son simulados; el resto es la lógica de verdad.</p>
+</div>
+
+<div class="phone">
+  <div class="appbar">
+    <div class="titles">
+      <h2 id="appTitle">PropiedadesNFC</h2>
+      <div class="sub">Prototipo · datos locales</div>
+    </div>
+    <button class="iconbtn" id="btnDatos" title="Exportar / importar" aria-label="Datos">⇅</button>
+    <button class="iconbtn" id="btnEscanear" title="Escanear etiqueta" aria-label="Escanear">⌁</button>
+    <button class="iconbtn primary" id="btnNueva" title="Nueva propiedad" aria-label="Nueva propiedad">+</button>
+  </div>
+
+  <main>
+    <section class="view active" id="view-mapa">
+      <div class="mapwrap"><svg id="mapsvg" viewBox="0 0 400 300" role="img" aria-label="Plano de propiedades"></svg></div>
+      <div class="map-note">Plano esquemático — la app real usa MapKit; aquí no hay tiles por la política de seguridad del navegador.</div>
+      <div id="mapEmpty"></div>
+    </section>
+
+    <section class="view" id="view-inv">
+      <div id="invList"></div>
+    </section>
+
+    <section class="view" id="view-tags">
+      <div class="hintbox"><b>Mesa de etiquetas.</b> Estas son las etiquetas físicas “sobre la mesa”.
+        Grabar, escanear y bloquear operan contra ellas. <b>Clonar</b> copia el contenido NDEF a un chip
+        nuevo — payload idéntico, serial de fábrica distinto: así se prueba la anti-clonación.</div>
+      <div id="tagList"></div>
+      <button class="btn" id="btnTagVirgen">+ Añadir NTAG213 virgen</button>
+      <button class="btn" id="btnTagAjena">+ Añadir etiqueta ajena (de otra app)</button>
+      <button class="btn danger" id="btnReset">Reiniciar demo (borra todo)</button>
+    </section>
+
+    <section class="view" id="view-check">
+      <div class="hintbox">Se marca solo, a medida que ejercitas cada camino — errores incluidos.
+        Es el §4 de la <b>GUIA-PRUEBAS.md</b> del repo, adaptado a lo simulable aquí.</div>
+      <div class="progress"><i id="progBar"></i></div>
+      <div id="checkList"></div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-tab="mapa" class="active"><span class="ico">▦</span>Mapa</button>
+    <button data-tab="inv"><span class="ico">☰</span>Inventario</button>
+    <button data-tab="tags"><span class="ico">⬚</span>Etiquetas</button>
+    <button data-tab="check"><span class="ico">✓</span>Pruebas</button>
+  </nav>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="sheet" id="sheet-captura">
+    <div class="grab"></div>
+    <div class="sc">
+      <h3>Nueva propiedad</h3>
+      <div class="subt">Sin fix GPS válido no se puede guardar — igual que en la app.</div>
+      <div class="field"><label for="fCodigo">Código</label><input id="fCodigo" placeholder="P-004" autocomplete="off"></div>
+      <div class="field"><label for="fNombre">Nombre</label><input id="fNombre" placeholder="Solar / estación / depósito" autocomplete="off"></div>
+      <div class="switchrow"><span>Simular mala señal GPS (interior)</span><input type="checkbox" id="fMala"></div>
+      <div id="gpsZona"></div>
+      <button class="btn primary" id="btnGuardarProp" disabled>Guardar</button>
+      <button class="btn" data-close>Cancelar</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet-detalle">
+    <div class="grab"></div>
+    <div class="sc" id="detalleBody"></div>
+  </div>
+
+  <div class="sheet" id="sheet-nfc">
+    <div class="grab"></div>
+    <div class="sc">
+      <div class="nfc-stage">
+        <div class="nfc-icon" aria-hidden="true"><i class="wave"></i><i class="wave"></i><i class="wave"></i><i class="phoneish"></i></div>
+        <div class="nfc-msg" id="nfcMsg"></div>
+      </div>
+      <div class="tagpick-title">¿Qué acercas al iPhone?</div>
+      <div class="tagpick" id="nfcPick"></div>
+      <button class="btn" data-close id="nfcCancel">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet-datos">
+    <div class="grab"></div>
+    <div class="sc">
+      <h3>Datos</h3>
+      <div class="subt">El GeoJSON es byte-compatible con el exportador de la app: orden [lon, lat], claves congeladas, 7 decimales.</div>
+      <button class="btn primary" id="btnExport">Descargar GeoJSON</button>
+      <button class="btn" id="btnVerGeo">Ver / copiar GeoJSON</button>
+      <div class="mono-block" id="geoOut" style="display:none"></div>
+      <div class="field" style="margin-top:16px"><label for="impArea">Importar: pega aquí un FeatureCollection</label>
+        <textarea id="impArea" placeholder='{"type":"FeatureCollection","features":[...]}'></textarea></div>
+      <button class="btn" id="btnImport">Importar</button>
+      <div class="report" id="impReport"></div>
+      <button class="btn" data-close style="margin-top:14px">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+'use strict';
+/* ================= estado ================= */
+const LSKEY='propnfc-proto-v1';
+const BASE={lat:18.4861, lon:-69.9312}; // Santo Domingo
+let S=null;
+
+function uuid(){ return crypto.randomUUID().toUpperCase(); }
+function serialNuevo(){
+  let s='04';
+  for(let i=0;i<12;i++) s+='0123456789ABCDEF'[Math.floor(Math.random()*16)];
+  return s;
+}
+function ahora(){ return new Date().toISOString().replace(/\.\d{3}Z$/,'Z'); }
+
+function seed(){
+  const p1={id:uuid(),codigo:'P-001',nombre:'Solar Km 12',lat:18.4861,lon:-69.9312,prec:4.2,
+    capturadoEn:ahora(),actualizadoEn:ahora(),notas:'',estado:'activa',serial:null,escritaEn:ahora(),bloqueadaEn:null};
+  const p2={id:uuid(),codigo:'P-002',nombre:'Estación Herrera',lat:18.4770,lon:-69.9670,prec:8.9,
+    capturadoEn:ahora(),actualizadoEn:ahora(),notas:'',estado:'sinEtiqueta',serial:null,escritaEn:null,bloqueadaEn:null};
+  const p3={id:uuid(),codigo:'P-003',nombre:'Depósito Haina',lat:18.4266,lon:-70.0327,prec:12.5,
+    capturadoEn:ahora(),actualizadoEn:ahora(),notas:'',estado:'activa',serial:null,escritaEn:ahora(),bloqueadaEn:null};
+  const t1={serial:serialNuevo(),payload:{id:p1.id,k:p1.codigo},locked:false,origen:'grabada'};
+  p1.serial=t1.serial; // P-001: flujo normal, serial registrado
+  const t3={serial:serialNuevo(),payload:{id:p3.id,k:p3.codigo},locked:false,origen:'grabada'};
+  // P-003: grabada "antes de la migración" — serial NO registrado → prueba de backfill
+  return {
+    props:[p1,p2,p3],
+    tags:[t1,t3,
+      {serial:serialNuevo(),payload:null,locked:false,origen:'virgen'},
+      {serial:serialNuevo(),payload:null,locked:false,origen:'virgen'},
+      {serial:serialNuevo(),payload:{ajeno:true},locked:false,origen:'ajena'}],
+    checks:{}
+  };
+}
+function save(){ try{ localStorage.setItem(LSKEY,JSON.stringify(S)); }catch(e){} }
+function load(){
+  try{ const raw=localStorage.getItem(LSKEY); if(raw){ S=JSON.parse(raw); return; } }catch(e){}
+  S=seed();
+}
+
+/* ================= CRC-8 y payload (espejo de PayloadPropiedad.swift) ================= */
+function crc8(str){
+  const bytes=new TextEncoder().encode(str); let crc=0;
+  for(const b of bytes){ crc^=b;
+    for(let i=0;i<8;i++) crc = (crc&0x80) ? ((crc<<1)^0x07)&0xFF : (crc<<1)&0xFF;
+  }
+  return crc;
+}
+function payloadJSON(id,codigo){
+  const c=crc8(`1|${id}|${codigo}`).toString(16).toUpperCase().padStart(2,'0');
+  const k=codigo.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+  return `{"v":1,"id":"${id}","c":"${c}","k":"${k}"}`;
+}
+
+/* ================= export GeoJSON (espejo de ExportadorGeoJSON.swift) ================= */
+function num(v,d){
+  if(!isFinite(v)) return 'null';
+  let t=v.toFixed(d);
+  if(t.includes('.')){ t=t.replace(/0+$/,''); if(t.endsWith('.')) t+='0'; }
+  return t==='-0.0'?'0.0':t;
+}
+function jstr(s){
+  let out='"';
+  for(const ch of s){
+    if(ch==='"') out+='\\"'; else if(ch==='\\') out+='\\\\';
+    else if(ch==='\n') out+='\\n'; else if(ch==='\r') out+='\\r'; else if(ch==='\t') out+='\\t';
+    else if(ch.charCodeAt(0)<0x20) out+='\\u'+ch.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0');
+    else out+=ch;
+  }
+  return out+'"';
+}
+function exportGeoJSON(){
+  const feats=S.props.map(p=>{
+    const props=[
+      `"codigo":${jstr(p.codigo)}`, `"nombre":${jstr(p.nombre)}`, `"estado":${jstr(p.estado)}`,
+      `"precision_m":${p.prec>=0?num(p.prec,1):'null'}`,
+      `"capturado_en":${jstr(p.capturadoEn)}`, `"actualizado_en":${jstr(p.actualizadoEn)}`,
+      `"etiqueta_escrita_en":${p.escritaEn?jstr(p.escritaEn):'null'}`,
+      `"etiqueta_serial":${p.serial?jstr(p.serial):'null'}`,
+      `"notas":${jstr(p.notas)}`,
+      `"etiqueta_bloqueada_en":${p.bloqueadaEn?jstr(p.bloqueadaEn):'null'}`
+    ].join(',');
+    return `{"type":"Feature","id":"${p.id}","geometry":{"type":"Point","coordinates":[${num(p.lon,7)},${num(p.lat,7)}]},"properties":{${props}}}`;
+  });
+  return `{"type":"FeatureCollection","features":[${feats.join(',')}]}`;
+}
+
+/* ================= importador (espejo de ImportadorGeoJSON.swift) ================= */
+function importGeoJSON(texto){
+  let raiz;
+  try{ raiz=JSON.parse(texto); }catch(e){ throw new Error('El texto no contiene JSON válido.'); }
+  if(raiz.type!=='FeatureCollection'||!Array.isArray(raiz.features))
+    throw new Error('No es un FeatureCollection GeoJSON.');
+  const vistos=new Set(S.props.map(p=>p.id));
+  const r={nuevas:0,duplicadas:0,errores:[]};
+  raiz.features.forEach((f,i)=>{
+    const g=f.geometry;
+    if(!g||g.type!=='Point'||!Array.isArray(g.coordinates)){ r.errores.push(`Feature ${i}: la geometría no es un Point`); return; }
+    const [lon,lat]=g.coordinates;
+    if(typeof lon!=='number'||lon<-180||lon>180){ r.errores.push(`Feature ${i}: longitud fuera de rango`); return; }
+    if(typeof lat!=='number'||lat<-90||lat>90){ r.errores.push(`Feature ${i}: latitud fuera de rango — ¿coordenadas invertidas?`); return; }
+    const pr=f.properties||{};
+    const codigo=(pr.codigo||'').trim();
+    if(!codigo){ r.errores.push(`Feature ${i}: falta properties.codigo`); return; }
+    let id=f.id&&/^[0-9A-Fa-f-]{36}$/.test(f.id)?f.id.toUpperCase():uuid();
+    if(vistos.has(id)){ r.duplicadas++; return; }
+    vistos.add(id);
+    S.props.push({id,codigo,nombre:pr.nombre||'',lat,lon,
+      prec:typeof pr.precision_m==='number'?pr.precision_m:-1,
+      capturadoEn:pr.capturado_en||ahora(),actualizadoEn:ahora(),notas:pr.notas||'',
+      estado:['borrador','activa','sinEtiqueta','baja'].includes(pr.estado)?pr.estado:'borrador',
+      serial:null,escritaEn:pr.etiqueta_escrita_en||null,bloqueadaEn:null});
+    r.nuevas++;
+  });
+  return r;
+}
+
+/* ================= checklist ================= */
+const CHECKS=[
+  ['captura-ok','4.1','Capturar propiedad con buen fix (≤10 m)'],
+  ['captura-mala','4.1','Captura rechazada por mala señal (>35 m)'],
+  ['export','4.2','Exportar GeoJSON — verifica en geojson.io que cae en RD'],
+  ['import','4.2','Importar GeoJSON y leer el reporte'],
+  ['reimport','4.2','Reimportar lo mismo → todo “duplicada omitida”'],
+  ['grabar','4.3','Grabar etiqueta a una propiedad'],
+  ['escaneo-ok','4.3','Escanear etiqueta y abrir su ficha'],
+  ['vacia','4.3','Escanear etiqueta en blanco → aviso, sin crash'],
+  ['ajena','4.3','Escanear etiqueta ajena → “no pertenece a esta app”'],
+  ['varias','4.3','Dos etiquetas a la vez → pide separarlas'],
+  ['reubicar','4.4','Reubicar con nota de auditoría en la ficha'],
+  ['clon','4.6','Clon rechazado: mismo payload, serial distinto'],
+  ['backfill','4.6','Backfill: etiqueta antigua adopta su serial (P-003)'],
+  ['lock-mal','4.7','Bloqueo abortado: etiqueta de otra propiedad'],
+  ['lock-ok','4.7','Bloqueo permanente aplicado'],
+  ['relock','4.7','Reintento de bloqueo → “ya estaba bloqueada”'],
+  ['regrabar-lock','4.7','Regrabar una bloqueada → rechazado'],
+];
+function marcar(id){
+  if(S.checks[id]) return;
+  S.checks[id]=true; save(); renderChecks();
+  const item=CHECKS.find(c=>c[0]===id);
+  toast('✓ Prueba superada: '+item[2]);
+}
+function renderChecks(){
+  const el=document.getElementById('checkList');
+  el.innerHTML=CHECKS.map(([id,sec,txt])=>
+    `<div class="check ${S.checks[id]?'done':''}"><div class="box">${S.checks[id]?'✓':''}</div>
+     <div>${txt}<div class="sec">§${sec}</div></div></div>`).join('');
+  const done=CHECKS.filter(c=>S.checks[c[0]]).length;
+  document.getElementById('progBar').style.width=(done/CHECKS.length*100)+'%';
+}
+
+/* ================= vistas ================= */
+const ESTADOS={borrador:'Borrador',activa:'Activa',sinEtiqueta:'Sin etiqueta',baja:'Baja'};
+const COLORES={borrador:'var(--ink2)',activa:'var(--ok)',sinEtiqueta:'var(--warn)',baja:'var(--bad)'};
+
+function renderInv(){
+  const el=document.getElementById('invList');
+  if(!S.props.length){ el.innerHTML='<div class="empty">Sin propiedades.<br>Captura la primera con el botón +.</div>'; return; }
+  el.innerHTML=S.props.map(p=>`
+    <button class="card" data-prop="${p.id}">
+      <span class="dot" style="background:${COLORES[p.estado]}"></span>
+      <span class="body"><span class="name">${p.nombre||p.codigo}</span>
+        <span class="meta">${p.codigo} · ${num(p.lat,5)}, ${num(p.lon,5)}</span></span>
+      <span class="right"><span class="pill ${p.estado}">${ESTADOS[p.estado]}</span><br>
+        ${p.prec>=0?`<span class="${p.prec>15?'warn':''}">±${num(p.prec,0)} m</span>`:'<span class="warn">precisión s/d</span>'}</span>
+    </button>`).join('');
+  el.querySelectorAll('[data-prop]').forEach(b=>b.onclick=()=>abrirDetalle(b.dataset.prop));
+}
+
+function renderMapa(){
+  const svg=document.getElementById('mapsvg');
+  const vacio=document.getElementById('mapEmpty');
+  let grid='';
+  for(let x=0;x<=400;x+=50) grid+=`<line x1="${x}" y1="0" x2="${x}" y2="300" stroke="var(--map-grid)" stroke-width="1"/>`;
+  for(let y=0;y<=300;y+=50) grid+=`<line x1="0" y1="${y}" x2="400" y2="${y}" stroke="var(--map-grid)" stroke-width="1"/>`;
+  if(!S.props.length){ svg.innerHTML=grid; vacio.innerHTML='<div class="empty">Sin propiedades georreferenciadas.</div>'; return; }
+  vacio.innerHTML='';
+  const lats=S.props.map(p=>p.lat), lons=S.props.map(p=>p.lon);
+  let minLa=Math.min(...lats),maxLa=Math.max(...lats),minLo=Math.min(...lons),maxLo=Math.max(...lons);
+  // margen 25% y span mínimo — mismo criterio que MapaPropiedadesView
+  const spLa=Math.max((maxLa-minLa)*1.25,0.02), spLo=Math.max((maxLo-minLo)*1.25,0.02);
+  const cLa=(minLa+maxLa)/2, cLo=(minLo+maxLo)/2;
+  const X=lon=>200+(lon-cLo)/spLo*360, Y=lat=>150-(lat-cLa)/spLa*260;
+  const marks=S.props.map(p=>`
+    <g class="marker" data-prop="${p.id}" tabindex="0" role="button" aria-label="${p.codigo}">
+      <circle cx="${X(p.lon)}" cy="${Y(p.lat)}" r="7" fill="${COLORES[p.estado]}" stroke="var(--surface)" stroke-width="2"/>
+      <text x="${X(p.lon)}" y="${Y(p.lat)-11}" text-anchor="middle">${p.codigo}</text>
+    </g>`).join('');
+  svg.innerHTML=grid+marks;
+  svg.querySelectorAll('.marker').forEach(m=>{
+    m.onclick=()=>abrirDetalle(m.dataset.prop);
+    m.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();abrirDetalle(m.dataset.prop);} };
+  });
+}
+
+function renderTags(){
+  const el=document.getElementById('tagList');
+  el.innerHTML=S.tags.map((t,i)=>{
+    let glyph='⚪',desc='NTAG213 virgen (137 B útiles)';
+    if(t.origen==='ajena'){glyph='⚠️';desc='Contenido NDEF de otra aplicación';}
+    else if(t.payload&&!t.payload.ajeno){
+      glyph=t.locked?'🔒':'🏷️';
+      desc=(t.locked?'BLOQUEADA · ':'Grabada · ')+t.payload.k+(t.origen==='clon'?' · CLON (payload copiado, chip distinto)':'');
+      if(t.origen==='clon') glyph='🟣';
+    }
+    const clonBtn=(t.payload&&!t.payload.ajeno)?`<button class="minibtn" data-clon="${i}">Clonar</button>`:'';
+    return `<div class="tagrow"><span class="glyph">${glyph}</span>
+      <div><div class="serial">${t.serial}</div><div class="desc">${desc}</div></div>
+      <div class="actions">${clonBtn}</div></div>`;
+  }).join('');
+  el.querySelectorAll('[data-clon]').forEach(b=>b.onclick=()=>{
+    const src=S.tags[+b.dataset.clon];
+    S.tags.push({serial:serialNuevo(),payload:{...src.payload},locked:false,origen:'clon'});
+    save(); renderTags();
+    toast('Clon creado: mismo NDEF, serial de fábrica nuevo. Ahora escanéalo.');
+  });
+}
+
+/* ================= detalle ================= */
+let detalleId=null;
+function abrirDetalle(id){
+  detalleId=id;
+  const p=S.props.find(x=>x.id===id); if(!p) return;
+  const body=document.getElementById('detalleBody');
+  const bytes=new TextEncoder().encode(payloadJSON(p.id,p.codigo)).length;
+  body.innerHTML=`
+    <h3>${p.codigo} <span class="pill ${p.estado}" style="vertical-align:2px">${ESTADOS[p.estado]}</span></h3>
+    <div class="subt">${p.nombre||'—'}</div>
+    <div class="kv"><span class="k">Latitud</span><span class="v">${num(p.lat,7)}</span></div>
+    <div class="kv"><span class="k">Longitud</span><span class="v">${num(p.lon,7)}</span></div>
+    <div class="kv"><span class="k">Precisión</span><span class="v ${p.prec<0?'meh':(p.prec<=10?'good':'meh')}">${p.prec>=0?'±'+num(p.prec,1)+' m':'sin dato (importada)'}</span></div>
+    <div class="kv"><span class="k">Serial NFC</span><span class="v">${p.serial||'—'}</span></div>
+    <div class="kv"><span class="k">Etiqueta</span><span class="v">${p.bloqueadaEn?'🔒 bloqueada':(p.escritaEn?'grabada':'pendiente')}</span></div>
+    <div class="kv"><span class="k">Payload (${bytes} B)</span><span class="v" style="font-size:10px">${payloadJSON(p.id,p.codigo).replace(/</g,'&lt;')}</span></div>
+    ${p.notas?`<div class="kv"><span class="k">Notas</span><span class="v" style="font-family:var(--sans);font-size:12px">${p.notas.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</span></div>`:''}
+    <button class="btn primary" id="dGrabar" ${p.bloqueadaEn?'disabled':''}>${p.escritaEn?'Regrabar etiqueta NFC':'Grabar etiqueta NFC'}</button>
+    ${p.escritaEn&&!p.bloqueadaEn?'<button class="btn danger" id="dBloquear">Bloquear etiqueta (permanente)</button>':''}
+    <button class="btn" id="dReubicar">Reubicar en “mi posición”</button>
+    <button class="btn" data-close>Listo</button>`;
+  body.querySelector('#dGrabar')?.addEventListener('click',()=>abrirNFC('write',p.id));
+  body.querySelector('#dBloquear')?.addEventListener('click',()=>{
+    if(confirm(`El bloqueo es PERMANENTE. Se verificará que la etiqueta acercada corresponde a «${p.codigo}». ¿Continuar?`))
+      abrirNFC('lock',p.id);
+  });
+  body.querySelector('#dReubicar')?.addEventListener('click',()=>{
+    const nota=`[${new Date().toLocaleString()}] Reubicada desde ${num(p.lat,7)}, ${num(p.lon,7)} (±${num(Math.max(p.prec,0),0)} m)`;
+    p.lat+= (Math.random()-0.5)*0.0008; p.lon+=(Math.random()-0.5)*0.0008;
+    p.prec=4+Math.random()*5; p.actualizadoEn=ahora();
+    p.notas=p.notas?p.notas+'\n'+nota:nota;
+    save(); renderAll(); abrirDetalle(p.id); marcar('reubicar');
+    toast('Posición actualizada. El valor anterior quedó en las notas.');
+  });
+  abrirSheet('sheet-detalle');
+}
+
+/* ================= sesión NFC simulada ================= */
+let nfcMode=null, nfcProp=null, nfcBusy=false;
+function abrirNFC(mode,propId){
+  nfcMode=mode; nfcProp=propId; nfcBusy=false;
+  cerrarSheets();
+  const msg=document.getElementById('nfcMsg');
+  msg.className='nfc-msg';
+  msg.textContent= mode==='scan' ? 'Acerca el iPhone a la etiqueta de la propiedad.'
+    : mode==='write' ? 'Acerca el iPhone a la etiqueta que vas a grabar.'
+    : 'Acerca el iPhone a la etiqueta que vas a bloquear. Esta acción es permanente.';
+  const pick=document.getElementById('nfcPick');
+  pick.innerHTML=S.tags.map((t,i)=>{
+    let g='⚪',d='virgen';
+    if(t.origen==='ajena'){g='⚠️';d='ajena';}
+    else if(t.payload){g=t.locked?'🔒':(t.origen==='clon'?'🟣':'🏷️');d=(t.locked?'bloqueada · ':'')+(t.payload.k||'')+(t.origen==='clon'?' (clon)':'');}
+    return `<button class="tagchip" data-tag="${i}"><span class="t">${g}</span><span class="s">${t.serial}</span><span class="d">${d}</span></button>`;
+  }).join('')+`<button class="tagchip" data-tag="multi"><span class="t">⚪⚪</span><span class="s">DOS ETIQUETAS</span><span class="d">acercar dos a la vez</span></button>`;
+  pick.querySelectorAll('[data-tag]').forEach(b=>b.onclick=()=>tocarTag(b.dataset.tag));
+  abrirSheet('sheet-nfc');
+}
+function nfcResultado(texto,clase,fin){
+  const msg=document.getElementById('nfcMsg');
+  msg.textContent=texto; msg.className='nfc-msg '+(clase||'');
+  if(fin) setTimeout(()=>{ cerrarSheets(); fin(); }, 1300);
+  else nfcBusy=false;
+}
+function tocarTag(idx){
+  if(nfcBusy) return; nfcBusy=true;
+  const msg=document.getElementById('nfcMsg');
+  msg.className='nfc-msg'; msg.textContent='Conectando…';
+  setTimeout(()=>{
+    if(idx==='multi'){ // restartPolling: avisa y sigue
+      nfcResultado('Se detectó más de una etiqueta. Separa las etiquetas y vuelve a acercar solo una.','err');
+      marcar('varias'); return;
+    }
+    const t=S.tags[+idx];
+    if(nfcMode==='scan') return escanearTag(t);
+    if(nfcMode==='write') return grabarTag(t);
+    if(nfcMode==='lock') return bloquearTag(t);
+  },700);
+}
+function escanearTag(t){
+  if(!t.payload){ nfcResultado('La etiqueta está en blanco. Grábala desde el detalle de la propiedad.','err'); marcar('vacia'); return; }
+  if(t.payload.ajeno){ nfcResultado('La etiqueta tiene datos, pero no pertenecen a esta aplicación.','err'); marcar('ajena'); return; }
+  const p=S.props.find(x=>x.id===t.payload.id);
+  if(!p){ nfcResultado('Etiqueta válida, pero esa propiedad no existe en este dispositivo.','err'); return; }
+  // anti-clonación: el payload se copia, el serial de fábrica no
+  if(p.serial && p.serial!==t.serial){
+    nfcResultado(`El serial físico del chip (${t.serial}) no coincide con el registrado (${p.serial}). Posible etiqueta clonada o sustituida.`,'err');
+    marcar('clon'); return;
+  }
+  const backfill = !p.serial && p.escritaEn;
+  if(backfill){ p.serial=t.serial; p.actualizadoEn=ahora(); save(); }
+  nfcResultado('Propiedad identificada.','okc',()=>{
+    if(backfill){ toast('Serial adoptado (backfill de etiqueta antigua).'); marcar('backfill'); }
+    marcar('escaneo-ok'); renderAll(); abrirDetalle(p.id);
+  });
+}
+function grabarTag(t){
+  const p=S.props.find(x=>x.id===nfcProp); if(!p) return nfcResultado('Error interno.','err');
+  if(t.locked){ nfcResultado('La etiqueta está bloqueada de forma permanente y no admite regrabación.','err'); marcar('regrabar-lock'); return; }
+  t.payload={id:p.id,k:p.codigo}; t.origen='grabada';
+  p.serial=t.serial; p.escritaEn=ahora(); p.estado='activa'; p.actualizadoEn=ahora();
+  save();
+  nfcResultado('Etiqueta grabada correctamente.','okc',()=>{
+    marcar('grabar'); renderAll(); abrirDetalle(p.id);
+    toast(`Grabada (serial ${t.serial}). Propiedad activa.`);
+  });
+}
+function bloquearTag(t){
+  const p=S.props.find(x=>x.id===nfcProp); if(!p) return nfcResultado('Error interno.','err');
+  // 1º el serial (se conoce nada más conectar), 2º el payload — como en la app
+  if(p.serial && p.serial!==t.serial && t.payload && !t.payload.ajeno && t.payload.id===p.id){
+    nfcResultado(`El serial físico (${t.serial}) no coincide con el registrado (${p.serial}). No se bloquean clones.`,'err');
+    marcar('clon'); return;
+  }
+  if(!t.payload){ nfcResultado('La etiqueta está en blanco. No hay nada que bloquear.','err'); return; }
+  if(t.payload.ajeno || t.payload.id!==p.id){
+    const quien=t.payload.ajeno?'otra aplicación':`«${t.payload.k}»`;
+    nfcResultado(`La etiqueta pertenece a ${quien}, no a «${p.codigo}». No se bloqueó nada.`,'err');
+    marcar('lock-mal'); return;
+  }
+  if(t.locked){
+    nfcResultado('La etiqueta ya estaba bloqueada.','okc',()=>{ marcar('relock'); abrirDetalle(p.id); });
+    return;
+  }
+  t.locked=true; p.bloqueadaEn=ahora(); p.actualizadoEn=ahora(); save();
+  nfcResultado('Etiqueta bloqueada de forma permanente.','okc',()=>{
+    marcar('lock-ok'); renderAll(); abrirDetalle(p.id);
+  });
+}
+
+/* ================= captura GPS simulada ================= */
+let gps=null;
+function iniciarCaptura(){
+  document.getElementById('fCodigo').value='';
+  document.getElementById('fNombre').value='';
+  document.getElementById('fMala').checked=false;
+  document.getElementById('btnGuardarProp').disabled=true;
+  gps={fix:null};
+  pintarGPS('idle');
+  abrirSheet('sheet-captura');
+}
+function pintarGPS(fase,extra){
+  const z=document.getElementById('gpsZona');
+  if(fase==='idle')
+    z.innerHTML='<button class="btn" id="btnFix">📍 Capturar posición actual</button>';
+  else if(fase==='busy')
+    z.innerHTML=`<div class="gpsline"><div class="spinner"></div><div>Fijando posición…<br><span class="acc" style="color:var(--ink2);font-size:12px">mejor lectura: ±${extra} m</span></div></div>`;
+  else if(fase==='ok')
+    z.innerHTML=`<div class="gpsline"><span style="font-size:18px">✅</span><div>Fix obtenido<br><span class="acc" style="font-size:12px">${num(gps.fix.lat,7)}, ${num(gps.fix.lon,7)} · ±${num(gps.fix.prec,1)} m</span></div></div><button class="btn" id="btnFix">Volver a capturar</button>`;
+  else if(fase==='fail')
+    z.innerHTML=`<div class="gpsline" style="border-color:var(--bad)"><span style="font-size:18px">⛔</span><div style="color:var(--bad)">No se alcanzó precisión utilizable (mejor: ±${extra} m).<br><span style="font-size:12px">La app rechaza guardar por encima de ±35 m.</span></div></div><button class="btn" id="btnFix">Reintentar</button>`;
+  z.querySelector('#btnFix')?.addEventListener('click',correrGPS);
+}
+function correrGPS(){
+  const mala=document.getElementById('fMala').checked;
+  let acc=65+Math.random()*20, t=0;
+  const objetivo= mala ? 40+Math.random()*45 : 4+Math.random()*5;
+  document.getElementById('btnGuardarProp').disabled=true;
+  gps.fix=null;
+  const iv=setInterval(()=>{
+    t+=400;
+    acc=Math.max(objetivo, acc*(0.72+Math.random()*0.12));
+    pintarGPS('busy',num(acc,0));
+    // criterios de ServicioUbicacion: ≤10 m cierra ya; timeout acepta ≤35 m
+    if(acc<=10 || t>=6000){
+      clearInterval(iv);
+      if(acc<=35){
+        gps.fix={lat:BASE.lat+(Math.random()-.5)*0.06, lon:BASE.lon+(Math.random()-.5)*0.09, prec:acc};
+        pintarGPS('ok');
+        document.getElementById('btnGuardarProp').disabled=false;
+      }else{
+        pintarGPS('fail',num(acc,0));
+        marcar('captura-mala');
+      }
+    }
+  },400);
+}
+function guardarPropiedad(){
+  const codigo=document.getElementById('fCodigo').value.trim();
+  if(!codigo){ toast('El código es obligatorio.'); return; }
+  if(!gps.fix){ toast('Captura primero la posición.'); return; }
+  S.props.push({id:uuid(),codigo,nombre:document.getElementById('fNombre').value.trim(),
+    lat:gps.fix.lat,lon:gps.fix.lon,prec:gps.fix.prec,
+    capturadoEn:ahora(),actualizadoEn:ahora(),notas:'',estado:'sinEtiqueta',
+    serial:null,escritaEn:null,bloqueadaEn:null});
+  save(); renderAll(); cerrarSheets();
+  if(gps.fix.prec<=10) marcar('captura-ok');
+  toast(`${codigo} guardada (±${num(gps.fix.prec,1)} m). Ahora grábale una etiqueta.`);
+}
+
+/* ================= datos ================= */
+let yaImporto=false;
+function descargarGeo(){
+  const blob=new Blob([exportGeoJSON()],{type:'application/geo+json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='propiedades-'+ahora().replace(/[:]/g,'')+'.geojson';
+  a.click(); URL.revokeObjectURL(a.href);
+  marcar('export');
+}
+function verGeo(){
+  const el=document.getElementById('geoOut');
+  el.style.display='block';
+  el.textContent=exportGeoJSON();
+  navigator.clipboard?.writeText(el.textContent).then(()=>toast('GeoJSON copiado. Pégalo en geojson.io.'),()=>{});
+  marcar('export');
+}
+function importar(){
+  const rep=document.getElementById('impReport');
+  try{
+    const r=importGeoJSON(document.getElementById('impArea').value);
+    save(); renderAll();
+    let txt=`${r.nuevas} importada(s), ${r.duplicadas} duplicada(s) omitida(s)`;
+    if(r.errores.length) txt+=`, ${r.errores.length} con errores:\n`+r.errores.slice(0,5).join('\n');
+    rep.textContent=txt; rep.style.color= r.errores.length?'var(--warn)':'var(--ok)';
+    if(yaImporto && r.nuevas===0 && r.duplicadas>0) marcar('reimport');
+    if(r.nuevas>0||r.duplicadas>0){ marcar('import'); yaImporto=true; }
+  }catch(e){ rep.textContent=e.message; rep.style.color='var(--bad)'; }
+}
+
+/* ================= plomería UI ================= */
+function abrirSheet(id){
+  document.getElementById('backdrop').classList.add('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.toggle('show',s.id===id));
+}
+function cerrarSheets(){
+  document.getElementById('backdrop').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600);
+}
+function renderAll(){ renderInv(); renderMapa(); renderTags(); renderChecks(); }
+
+load();
+renderAll();
+document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabbar button').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+b.dataset.tab));
+});
+document.getElementById('btnNueva').onclick=iniciarCaptura;
+document.getElementById('btnEscanear').onclick=()=>abrirNFC('scan',null);
+document.getElementById('btnDatos').onclick=()=>{ document.getElementById('geoOut').style.display='none'; document.getElementById('impReport').textContent=''; abrirSheet('sheet-datos'); };
+document.getElementById('btnGuardarProp').onclick=guardarPropiedad;
+document.getElementById('btnExport').onclick=descargarGeo;
+document.getElementById('btnVerGeo').onclick=verGeo;
+document.getElementById('btnImport').onclick=importar;
+document.getElementById('btnTagVirgen').onclick=()=>{ S.tags.push({serial:serialNuevo(),payload:null,locked:false,origen:'virgen'}); save(); renderTags(); };
+document.getElementById('btnTagAjena').onclick=()=>{ S.tags.push({serial:serialNuevo(),payload:{ajeno:true},locked:false,origen:'ajena'}); save(); renderTags(); };
+document.getElementById('btnReset').onclick=()=>{ if(confirm('¿Borrar todos los datos del prototipo y volver al estado inicial?')){ S=seed(); save(); renderAll(); toast('Demo reiniciada.'); } };
+document.getElementById('backdrop').onclick=cerrarSheets;
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=cerrarSheets);
+document.addEventListener('click',e=>{ if(e.target.matches('[data-close]')) cerrarSheets(); });
+</script>
