@@ -58,16 +58,21 @@ enum ExportadorGeoJSON {
     private static func propiedades(_ propiedad: Propiedad) -> String {
         // Orden de columnas congelado: cualquier consumidor de BI que mapee
         // por posición se rompe si se reordena o se elimina una clave.
+        // Evolución del esquema: las columnas nuevas SIEMPRE se añaden al
+        // final, nunca en medio, para no desplazar los índices de los
+        // consumidores que mapean por posición.
         var partes: [String] = []
         partes.append(#""codigo":\#(texto(propiedad.codigo))"#)
         partes.append(#""nombre":\#(texto(propiedad.nombre))"#)
         partes.append(#""estado":\#(texto(propiedad.estado.rawValue))"#)
-        partes.append(#""precision_m":\#(numero(propiedad.precisionHorizontal, decimales: 1))"#)
+        // Precisión negativa = sentinela de "sin dato" (importaciones): null.
+        partes.append(#""precision_m":\#(propiedad.tienePrecisionConocida ? numero(propiedad.precisionHorizontal, decimales: 1) : "null")"#)
         partes.append(#""capturado_en":\#(texto(formateadorFecha.string(from: propiedad.capturadoEn)))"#)
         partes.append(#""actualizado_en":\#(texto(formateadorFecha.string(from: propiedad.actualizadoEn)))"#)
         partes.append(#""etiqueta_escrita_en":\#(propiedad.etiquetaEscritaEn.map { texto(formateadorFecha.string(from: $0)) } ?? "null")"#)
         partes.append(#""etiqueta_serial":\#(propiedad.etiquetaSerial.map(texto) ?? "null")"#)
         partes.append(#""notas":\#(texto(propiedad.notas))"#)
+        partes.append(#""etiqueta_bloqueada_en":\#(propiedad.etiquetaBloqueadaEn.map { texto(formateadorFecha.string(from: $0)) } ?? "null")"#)
         return "{" + partes.joined(separator: ",") + "}"
     }
 

@@ -18,6 +18,7 @@ Fuentes/
 │                   ErrorNFC.swift               Dominio de errores + traducción de NFCReaderError
 ├── Ubicacion/      ServicioUbicacion.swift      Captura GPS con control de calidad del fix
 ├── Exportacion/    ExportadorGeoJSON.swift      Salida RFC 7946 determinista
+│                   ImportadorGeoJSON.swift      Carga de datasets con validación estricta y dedupe
 ├── Vistas/         RootView / Mapa / Captura / Detalle
 └── Recursos/       Info.plist · entitlements
 Pruebas/            Contratos de formato NFC y GeoJSON
@@ -87,6 +88,10 @@ Cabe en una NTAG213 (137 B útiles); hay una prueba que falla si deja de caber.
 
 **Para cambiar el formato:** subir `versionActual`, mantener el decoder de v1, y no tocar `cadenaCanonica` de las versiones anteriores.
 
+### Bloqueo permanente (write-lock)
+
+Desde el detalle de una propiedad con etiqueta grabada se puede aplicar `writeLock`. Es **irreversible**, así que la sesión no bloquea a ciegas: primero lee la etiqueta, decodifica el payload y **verifica que el UUID coincide con la propiedad en pantalla**; si no coincide, aborta sin tocar nada (`etiquetaNoCoincide`). Una etiqueta ya `readOnly` con el UUID correcto se trata como éxito idempotente — en campo es común reintentar un bloqueo que sí llegó a aplicarse. El bloqueo queda registrado en `etiquetaBloqueadaEn` y la UI deja de ofrecer la regrabación.
+
 ---
 
 ## Formato de exportación GeoJSON
@@ -98,6 +103,12 @@ Cabe en una NTAG213 (137 B útiles); hay una prueba que falla si deja de caber.
 3. **Redondeo explícito a 7 decimales** (~1,1 cm). Sin él, el ruido de coma flotante genera diffs espurios en cada exportación.
 
 `ExportadorGeoJSONTests.test_salidaEsByteExacta` es intencionalmente frágil: cualquier cambio en el formato debe romper el build antes que a un consumidor aguas abajo.
+
+**Evolución del esquema:** las columnas nuevas se añaden **siempre al final** de `properties` (así entró `etiqueta_bloqueada_en`), nunca en medio, para no desplazar índices de consumidores posicionales. `precision_m` emite `null` cuando la propiedad se importó sin dato de precisión (sentinela interno `-1`, mismo convenio que CoreLocation) — nunca un `-1` que un BI promediaría.
+
+### Importación
+
+`ImportadorGeoJSON` acepta `FeatureCollection` de puntos y aplica, por feature: geometría `Point` con rangos válidos (una latitud fuera de ±90 sugiere coordenadas invertidas en el mensaje de error), `properties.codigo` obligatorio, `id` como UUID (se genera si falta). **Un `id` ya existente se omite, nunca se sobreescribe**: lo capturado o corregido en campo manda sobre cualquier archivo. Un feature inválido no aborta el archivo — entra lo válido y todo descarte queda contado en el reporte. Exportar en un dispositivo e importar en otro es hoy el mecanismo de traspaso entre equipos.
 
 ---
 
@@ -113,7 +124,7 @@ Cubren los dos contratos de formato (NFC y GeoJSON), que son lo único que no se
 
 ## Pendiente / siguientes pasos
 
-- [ ] Sincronización multiusuario (hoy el store es local por dispositivo; ver opción PostGIS descartada en el diseño inicial).
+- [x] Importación GeoJSON para cargar un dataset base — con validación estricta, dedupe por UUID y reporte de descartes.
+- [x] Bloqueo permanente de etiquetas (`writeLock`) — con verificación de identidad previa y doble confirmación en UI.
+- [ ] Sincronización multiusuario (hoy el store es local por dispositivo; el traspaso entre equipos es exportar/importar GeoJSON).
 - [ ] Migración a `NFCTagReaderSession` si se necesita el UID físico o autenticación por sector.
-- [ ] Bloqueo permanente de etiquetas (`writeLock`) tras validación en campo — irreversible, requiere confirmación explícita en UI.
-- [ ] Importación GeoJSON para cargar un dataset base.

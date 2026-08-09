@@ -22,6 +22,11 @@ enum ErrorNFC: LocalizedError, Equatable {
     case checksumInvalido(esperado: UInt8, leido: UInt8)
     case versionNoSoportada(Int)
     case variasEtiquetas
+    /// La etiqueta acercada no corresponde a la propiedad en pantalla.
+    /// Existe para impedir bloqueos permanentes sobre la etiqueta equivocada.
+    case etiquetaNoCoincide(esperada: String, leida: String)
+    /// El chip no admite el comando de bloqueo por software.
+    case bloqueoNoSoportado(String)
 
     var errorDescription: String? {
         switch self {
@@ -53,6 +58,10 @@ enum ErrorNFC: LocalizedError, Equatable {
             return "La etiqueta usa el formato v\(version), más reciente que el que soporta esta versión de la app. Actualiza la app."
         case .variasEtiquetas:
             return "Se detectó más de una etiqueta. Separa las etiquetas y vuelve a acercar solo una."
+        case .etiquetaNoCoincide(let esperada, let leida):
+            return "La etiqueta acercada pertenece a «\(leida)», no a «\(esperada)». No se bloqueó nada."
+        case .bloqueoNoSoportado(let detalle):
+            return "Este chip no admite bloqueo por comando: \(detalle). La etiqueta queda intacta."
         }
     }
 }

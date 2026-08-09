@@ -60,6 +60,9 @@ final class Propiedad {
     /// NDEF puro Apple no expone el UID de la etiqueta. Ver README.
     var etiquetaSerial: String?
     var etiquetaEscritaEn: Date?
+    /// Fecha del bloqueo permanente (write-lock). Un bloqueo es irreversible:
+    /// una vez poblado este campo, la etiqueta física ya no admite regrabación.
+    var etiquetaBloqueadaEn: Date?
 
     /// Backing store del estado. No usar directamente: usar `estado`.
     var estadoRaw: String
@@ -88,6 +91,7 @@ final class Propiedad {
         self.notas = notas
         self.etiquetaSerial = nil
         self.etiquetaEscritaEn = nil
+        self.etiquetaBloqueadaEn = nil
         self.estadoRaw = estado.rawValue
     }
 }
@@ -118,6 +122,16 @@ extension Propiedad {
         estado = .activa
         actualizadoEn = fecha
     }
+
+    /// Registra el bloqueo permanente de la etiqueta física.
+    func registrarBloqueoNFC(en fecha: Date = .now) {
+        etiquetaBloqueadaEn = fecha
+        actualizadoEn = fecha
+    }
+
+    /// `true` si la precisión del fix es un dato real y no el sentinela
+    /// de importación (`ImportadorGeoJSON.precisionDesconocida`).
+    var tienePrecisionConocida: Bool { precisionHorizontal >= 0 }
 
     /// Reposiciona la propiedad conservando auditoría del cambio.
     func reubicar(a ubicacion: CLLocation, nota: String? = nil) {

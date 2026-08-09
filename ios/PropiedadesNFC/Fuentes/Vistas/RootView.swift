@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct RootView: View {
     @Environment(\.modelContext) private var contexto
@@ -12,6 +13,8 @@ struct RootView: View {
     @State private var propiedadSeleccionada: Propiedad?
     @State private var error: ErrorPresentable?
     @State private var mostrandoCaptura = false
+    @State private var mostrandoImportador = false
+    @State private var avisoImportacion: ErrorPresentable?
 
     private enum Pestana { case mapa, inventario }
 
@@ -44,16 +47,42 @@ struct RootView: View {
         .alert(item: $error) { error in
             Alert(title: Text("Error"), message: Text(error.mensaje), dismissButton: .default(Text("Entendido")))
         }
+        .alert(item: $avisoImportacion) { aviso in
+            Alert(title: Text("Importación"), message: Text(aviso.mensaje), dismissButton: .default(Text("Entendido")))
+        }
+        .fileImporter(
+            isPresented: $mostrandoImportador,
+            allowedContentTypes: Self.tiposGeoJSON
+        ) { resultado in
+            switch resultado {
+            case .success(let url): importar(desde: url)
+            case .failure(let fallo): error = ErrorPresentable(mensaje: fallo.localizedDescription)
+            }
+        }
     }
+
+    /// `.geojson` no tiene UTType del sistema: se declara por extensión y
+    /// se acepta también `.json` plano como respaldo.
+    private static let tiposGeoJSON: [UTType] =
+        [UTType(filenameExtension: "geojson"), .json].compactMap { $0 }
 
     @ToolbarContentBuilder
     private var barra: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            // La exportación se genera bajo demanda: el archivo temporal
-            // solo existe mientras dura el share sheet.
-            if let url = try? ExportadorGeoJSON.escribirArchivo(propiedades) {
-                ShareLink(item: url) { Label("Exportar", systemImage: "square.and.arrow.up") }
-                    .disabled(propiedades.isEmpty)
+            Menu {
+                // La exportación se genera bajo demanda: el archivo temporal
+                // solo existe mientras dura el share sheet.
+                if let url = try? ExportadorGeoJSON.escribirArchivo(propiedades) {
+                    ShareLink(item: url) { Label("Exportar GeoJSON", systemImage: "square.and.arrow.up") }
+                        .disabled(propiedades.isEmpty)
+                }
+                Button {
+                    mostrandoImportador = true
+                } label: {
+                    Label("Importar GeoJSON", systemImage: "square.and.arrow.down")
+                }
+            } label: {
+                Label("Datos", systemImage: "square.and.arrow.up.on.square")
             }
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
@@ -70,6 +99,25 @@ struct RootView: View {
             } label: {
                 Label("Nueva propiedad", systemImage: "plus")
             }
+        }
+    }
+
+    /// Importa un FeatureCollection desde el proveedor de documentos.
+    /// Los duplicados por UUID se omiten: lo corregido en campo manda
+    /// sobre cualquier archivo. El reporte completo se muestra al usuario.
+    private func importar(desde url: URL) {
+        do {
+            // Fuera del sandbox de la app, el acceso exige el scope de seguridad.
+            let accesoConcedido = url.startAccessingSecurityScopedResource()
+            defer { if accesoConcedido { url.stopAccessingSecurityScopedResource() } }
+
+            let datos = try Data(contentsOf: url)
+            let resultado = try ImportadorGeoJSON.importar(datos, existentes: Set(propiedades.map(\.id)))
+            resultado.nuevas.forEach(contexto.insert)
+            try contexto.save()
+            avisoImportacion = ErrorPresentable(mensaje: resultado.resumen)
+        } catch {
+            self.error = ErrorPresentable(mensaje: error.localizedDescription)
         }
     }
 
@@ -166,9 +214,17 @@ struct FilaPropiedad: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(propiedad.estado.titulo).font(.caption2)
-                Text(String(format: "±%.0f m", propiedad.precisionHorizontal))
-                    .font(.caption2)
-                    .foregroundStyle(propiedad.precisionHorizontal <= 15 ? .secondary : .orange)
+                if propiedad.tienePrecisionConocida {
+                    Text(String(format: "±%.0f m", propiedad.precisionHorizontal))
+                        .font(.caption2)
+                        .foregroundStyle(propiedad.precisionHorizontal <= 15 ? .secondary : .orange)
+                } else {
+                    // Importada sin dato de precisión: se marca para invitar
+                    // a validarla en campo, no se muestra un número falso.
+                    Text("precisión s/d")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .contentShape(Rectangle())

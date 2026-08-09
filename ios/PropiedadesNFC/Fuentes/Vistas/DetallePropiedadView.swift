@@ -12,6 +12,7 @@ struct DetallePropiedadView: View {
 
     @State private var error: ErrorPresentable?
     @State private var confirmandoReubicacion = false
+    @State private var confirmandoBloqueo = false
     @State private var mensajeExito: String?
 
     var body: some View {
@@ -39,7 +40,12 @@ struct DetallePropiedadView: View {
 
                 LabeledContent("Latitud", value: String(format: "%.7f", propiedad.latitud))
                 LabeledContent("Longitud", value: String(format: "%.7f", propiedad.longitud))
-                LabeledContent("Precisión", value: String(format: "±%.1f m", propiedad.precisionHorizontal))
+                LabeledContent(
+                    "Precisión",
+                    value: propiedad.tienePrecisionConocida
+                        ? String(format: "±%.1f m", propiedad.precisionHorizontal)
+                        : "sin dato (importada)"
+                )
                 if let altitud = propiedad.altitud {
                     LabeledContent("Altitud", value: String(format: "%.1f m", altitud))
                 }
@@ -57,7 +63,18 @@ struct DetallePropiedadView: View {
                             systemImage: "wave.3.right.circle"
                         )
                     }
-                    .disabled(servicioNFC.operacionEnCurso)
+                    // Con la etiqueta bloqueada la regrabación fallaría en la
+                    // sesión: mejor no ofrecer el botón.
+                    .disabled(servicioNFC.operacionEnCurso || propiedad.etiquetaBloqueadaEn != nil)
+
+                    if propiedad.etiquetaEscritaEn != nil, propiedad.etiquetaBloqueadaEn == nil {
+                        Button(role: .destructive) {
+                            confirmandoBloqueo = true
+                        } label: {
+                            Label("Bloquear etiqueta (permanente)", systemImage: "lock")
+                        }
+                        .disabled(servicioNFC.operacionEnCurso)
+                    }
                 } else {
                     Label("NFC no disponible en este dispositivo", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.secondary)
@@ -65,6 +82,15 @@ struct DetallePropiedadView: View {
 
                 if let escritaEn = propiedad.etiquetaEscritaEn {
                     LabeledContent("Grabada", value: escritaEn.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let bloqueadaEn = propiedad.etiquetaBloqueadaEn {
+                    LabeledContent("Bloqueada") {
+                        Label(
+                            bloqueadaEn.formatted(date: .abbreviated, time: .shortened),
+                            systemImage: "lock.fill"
+                        )
+                        .foregroundStyle(.secondary)
+                    }
                 }
                 if let serial = propiedad.etiquetaSerial {
                     LabeledContent("Serial", value: serial)
@@ -96,6 +122,14 @@ struct DetallePropiedadView: View {
             Button("Reubicar", role: .destructive) { Task { await reubicar() } }
             Button("Cancelar", role: .cancel) {}
         }
+        .confirmationDialog(
+            "El bloqueo es PERMANENTE: la etiqueta física nunca más admitirá regrabación. Antes de bloquear se verificará que la etiqueta acercada corresponde a «\(propiedad.codigo)».",
+            isPresented: $confirmandoBloqueo,
+            titleVisibility: .visible
+        ) {
+            Button("Bloquear definitivamente", role: .destructive) { Task { await bloquearEtiqueta() } }
+            Button("Cancelar", role: .cancel) {}
+        }
         .alert(item: $error) { error in
             Alert(title: Text("Error"), message: Text(error.mensaje), dismissButton: .default(Text("Entendido")))
         }
@@ -125,6 +159,22 @@ struct DetallePropiedadView: View {
         } catch let fallo as ErrorNFC {
             guard !fallo.esSilencioso else { return }
             error = ErrorPresentable(mensaje: fallo.errorDescription ?? "Error al grabar")
+        } catch {
+            self.error = ErrorPresentable(mensaje: error.localizedDescription)
+        }
+    }
+
+    private func bloquearEtiqueta() async {
+        do {
+            let yaEstaba = try await servicioNFC.bloquear(propiedad.payloadNFC)
+            propiedad.registrarBloqueoNFC()
+            guardar()
+            mensajeExito = yaEstaba
+                ? "La etiqueta ya estaba bloqueada; se registró en la ficha."
+                : "Etiqueta bloqueada de forma permanente."
+        } catch let fallo as ErrorNFC {
+            guard !fallo.esSilencioso else { return }
+            error = ErrorPresentable(mensaje: fallo.errorDescription ?? "Error al bloquear")
         } catch {
             self.error = ErrorPresentable(mensaje: error.localizedDescription)
         }

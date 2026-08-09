@@ -33,6 +33,18 @@ final class ServicioNFC: ObservableObject {
         _ = try await ejecutar(.escritura(payload)) { _ in () }
     }
 
+    /// Bloquea la etiqueta de forma PERMANENTE tras verificar que su
+    /// contenido corresponde al payload esperado.
+    /// - Returns: `true` si la etiqueta ya estaba bloqueada (idempotente).
+    func bloquear(_ payload: PayloadPropiedad) async throws -> Bool {
+        try await ejecutar(.bloqueo(payload)) { resultado in
+            guard case .bloqueado(let yaEstaba) = resultado else {
+                throw ErrorNFC.lecturaFallida("Resultado inesperado de la sesión")
+            }
+            return yaEstaba
+        }
+    }
+
     private func ejecutar<T>(
         _ operacion: SesionNDEF.Operacion,
         transformar: @escaping (SesionNDEF.Resultado) throws -> T
@@ -67,11 +79,16 @@ final class SesionNDEF: NSObject, @unchecked Sendable {
     enum Operacion {
         case lectura
         case escritura(PayloadPropiedad)
+        /// Bloqueo permanente. Lleva el payload esperado porque la sesión
+        /// verifica el contenido de la etiqueta ANTES de bloquear: bloquear
+        /// la etiqueta equivocada es irreversible.
+        case bloqueo(PayloadPropiedad)
 
         var mensajeInicial: String {
             switch self {
             case .lectura:   return "Acerca el iPhone a la etiqueta de la propiedad."
             case .escritura: return "Acerca el iPhone a la etiqueta que vas a grabar."
+            case .bloqueo:   return "Acerca el iPhone a la etiqueta que vas a bloquear. Esta acción es permanente."
             }
         }
     }
@@ -79,6 +96,7 @@ final class SesionNDEF: NSObject, @unchecked Sendable {
     enum Resultado {
         case leido(PayloadPropiedad)
         case escrito
+        case bloqueado(yaEstaba: Bool)
     }
 
     private let operacion: Operacion
@@ -170,6 +188,8 @@ extension SesionNDEF: NFCNDEFReaderSessionDelegate {
                     self.leer(etiqueta, estado: estado, session: session)
                 case .escritura(let payload):
                     self.escribir(payload, en: etiqueta, estado: estado, capacidad: capacidad, session: session)
+                case .bloqueo(let esperado):
+                    self.bloquear(esperado, en: etiqueta, estado: estado, session: session)
                 }
             }
         }
@@ -258,6 +278,70 @@ extension SesionNDEF: NFCNDEFReaderSessionDelegate {
                 return
             }
             self.completar(session, .escrito, mensaje: "Etiqueta grabada correctamente.")
+        }
+    }
+
+    /// Bloqueo permanente con verificación previa de identidad.
+    ///
+    /// Secuencia: leer → decodificar → comparar UUID → writeLock.
+    /// Si cualquier paso falla, la etiqueta queda intacta. Un `readOnly`
+    /// con el UUID correcto se trata como éxito idempotente, no como error:
+    /// en campo es común reintentar un bloqueo que sí llegó a aplicarse.
+    private func bloquear(
+        _ esperado: PayloadPropiedad,
+        en etiqueta: NFCNDEFTag,
+        estado: NFCNDEFStatus,
+        session: NFCNDEFReaderSession
+    ) {
+        guard estado != .notSupported else {
+            abortar(session, .etiquetaNoFormateada)
+            return
+        }
+
+        etiqueta.readNDEF { [weak self] mensaje, error in
+            guard let self else { return }
+            if error != nil, mensaje == nil {
+                self.abortar(session, .etiquetaVacia)
+                return
+            }
+            guard let mensaje, !mensaje.records.isEmpty else {
+                self.abortar(session, .etiquetaVacia)
+                return
+            }
+
+            let leido: PayloadPropiedad
+            do {
+                leido = try PayloadPropiedad.decodificar(mensaje)
+            } catch let error as ErrorNFC {
+                self.abortar(session, error)
+                return
+            } catch {
+                self.abortar(session, .lecturaFallida(error.localizedDescription))
+                return
+            }
+
+            // La comparación es por UUID, no por código: el registro URI de
+            // respaldo no transporta código y seguiría siendo la misma etiqueta.
+            guard leido.id == esperado.id else {
+                self.abortar(session, .etiquetaNoCoincide(
+                    esperada: esperado.codigo,
+                    leida: leido.codigo.isEmpty ? leido.id.uuidString : leido.codigo
+                ))
+                return
+            }
+
+            if estado == .readOnly {
+                self.completar(session, .bloqueado(yaEstaba: true), mensaje: "La etiqueta ya estaba bloqueada.")
+                return
+            }
+
+            etiqueta.writeLock { error in
+                if let error {
+                    self.abortar(session, .bloqueoNoSoportado(error.localizedDescription))
+                    return
+                }
+                self.completar(session, .bloqueado(yaEstaba: false), mensaje: "Etiqueta bloqueada de forma permanente.")
+            }
         }
     }
 }

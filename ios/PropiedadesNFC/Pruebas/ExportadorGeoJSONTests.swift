@@ -30,9 +30,19 @@ final class ExportadorGeoJSONTests: XCTestCase {
         "properties":{"codigo":"P-001","nombre":"Solar Km 12","estado":"borrador",\
         "precision_m":4.2,"capturado_en":"2023-11-14T22:13:20Z",\
         "actualizado_en":"2023-11-14T22:13:20Z","etiqueta_escrita_en":null,\
-        "etiqueta_serial":null,"notas":""}}]}
+        "etiqueta_serial":null,"notas":"","etiqueta_bloqueada_en":null}}]}
         """
         XCTAssertEqual(String(decoding: datos, as: UTF8.self), esperado)
+    }
+
+    /// El sentinela de "precisión desconocida" (importaciones) debe salir
+    /// como null, nunca como un -1 que un consumidor de BI promediaría.
+    func test_precisionDesconocidaSeEmiteComoNull() {
+        let propiedad = propiedadDeControl()
+        propiedad.precisionHorizontal = ImportadorGeoJSON.precisionDesconocida
+        let texto = String(decoding: ExportadorGeoJSON.featureCollection([propiedad]), as: UTF8.self)
+        XCTAssertTrue(texto.contains(#""precision_m":null"#))
+        XCTAssertFalse(texto.contains(#""precision_m":-1"#))
     }
 
     /// La comprobación que más veces salva un proyecto de geodata:
