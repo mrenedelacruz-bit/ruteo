@@ -56,8 +56,12 @@ final class Propiedad {
     var notas: String
 
     // MARK: - Vínculo NFC
-    /// Reservado. Solo se puede poblar con `NFCTagReaderSession`; en modo
-    /// NDEF puro Apple no expone el UID de la etiqueta. Ver README.
+    /// UID físico de fábrica del chip, en hexadecimal (`Data.serialHex`).
+    /// Se captura al grabar la etiqueta y sirve de verificación
+    /// anti-clonación: un clon NDEF copia el payload, no el silicio.
+    /// `nil` solo en etiquetas grabadas antes de la migración a
+    /// `NFCTagReaderSession` (se adopta en la siguiente lectura) o en
+    /// propiedades sin etiqueta.
     var etiquetaSerial: String?
     var etiquetaEscritaEn: Date?
     /// Fecha del bloqueo permanente (write-lock). Un bloqueo es irreversible:
@@ -116,11 +120,23 @@ extension Propiedad {
         PayloadPropiedad(id: id, codigo: codigo)
     }
 
-    /// Marca la propiedad como recién escrita en una etiqueta.
-    func registrarEscrituraNFC(en fecha: Date = .now) {
+    /// Marca la propiedad como recién escrita en una etiqueta, adoptando
+    /// el serial físico del chip grabado. Regrabar sobre un chip distinto
+    /// (reposición de etiqueta dañada) sustituye el serial: el vigente es
+    /// siempre el del último chip escrito.
+    func registrarEscrituraNFC(serial: String, en fecha: Date = .now) {
+        etiquetaSerial = serial
         etiquetaEscritaEn = fecha
         estado = .activa
         actualizadoEn = fecha
+    }
+
+    /// Adopta el serial físico en una propiedad grabada antes de la
+    /// migración a `NFCTagReaderSession` (backfill en primera lectura).
+    func adoptarSerialNFC(_ serial: String) {
+        guard etiquetaSerial == nil else { return }
+        etiquetaSerial = serial
+        actualizadoEn = .now
     }
 
     /// Registra el bloqueo permanente de la etiqueta física.

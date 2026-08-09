@@ -7,8 +7,11 @@
 	  en el App ID del portal de desarrolladores. Sin eso, el perfil de
 	  aprovisionamiento no incluye el entitlement y la sesión falla al iniciar.
 	-->
+	<!-- TAG habilita NFCTagReaderSession (acceso al UID físico del chip);
+	     NDEF se conserva para la lectura en background (tap sin app abierta). -->
 	<key>com.apple.developer.nfc.readersession.formats</key>
 	<array>
+		<string>TAG</string>
 		<string>NDEF</string>
 	</array>
 

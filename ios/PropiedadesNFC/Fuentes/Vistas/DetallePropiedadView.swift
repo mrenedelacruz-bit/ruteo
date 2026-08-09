@@ -152,10 +152,10 @@ struct DetallePropiedadView: View {
 
     private func grabarEtiqueta() async {
         do {
-            try await servicioNFC.escribir(propiedad.payloadNFC)
-            propiedad.registrarEscrituraNFC()
+            let serial = try await servicioNFC.escribir(propiedad.payloadNFC)
+            propiedad.registrarEscrituraNFC(serial: serial)
             guardar()
-            mensajeExito = "Etiqueta grabada y propiedad marcada como activa."
+            mensajeExito = "Etiqueta grabada (serial \(serial)) y propiedad marcada como activa."
         } catch let fallo as ErrorNFC {
             guard !fallo.esSilencioso else { return }
             error = ErrorPresentable(mensaje: fallo.errorDescription ?? "Error al grabar")
@@ -166,10 +166,16 @@ struct DetallePropiedadView: View {
 
     private func bloquearEtiqueta() async {
         do {
-            let yaEstaba = try await servicioNFC.bloquear(propiedad.payloadNFC)
+            // Si la ficha ya tiene serial, la sesión lo exige antes de leer
+            // un solo byte NDEF: no se bloquean clones ni chips sustituidos.
+            let resultado = try await servicioNFC.bloquear(
+                propiedad.payloadNFC,
+                serialEsperado: propiedad.etiquetaSerial
+            )
+            propiedad.adoptarSerialNFC(resultado.serial)
             propiedad.registrarBloqueoNFC()
             guardar()
-            mensajeExito = yaEstaba
+            mensajeExito = resultado.yaEstaba
                 ? "La etiqueta ya estaba bloqueada; se registró en la ficha."
                 : "Etiqueta bloqueada de forma permanente."
         } catch let fallo as ErrorNFC {

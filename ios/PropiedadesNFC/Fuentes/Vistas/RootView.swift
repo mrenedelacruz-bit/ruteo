@@ -124,8 +124,8 @@ struct RootView: View {
     /// Lee una etiqueta y abre la propiedad correspondiente.
     private func escanear() async {
         do {
-            let payload = try await servicioNFC.leer()
-            let id = payload.id
+            let lectura = try await servicioNFC.leer()
+            let id = lectura.payload.id
             // #Predicate no admite propiedades computadas ni capturas de
             // tipos no soportados: el UUID se extrae a una constante antes.
             var descriptor = FetchDescriptor<Propiedad>(predicate: #Predicate { $0.id == id })
@@ -133,10 +133,29 @@ struct RootView: View {
 
             guard let encontrada = try contexto.fetch(descriptor).first else {
                 error = ErrorPresentable(
-                    mensaje: "La etiqueta es válida (\(payload.codigo.isEmpty ? id.uuidString : payload.codigo)) pero esa propiedad no existe en este dispositivo. Sincroniza o impórtala antes de continuar."
+                    mensaje: "La etiqueta es válida (\(lectura.payload.codigo.isEmpty ? id.uuidString : lectura.payload.codigo)) pero esa propiedad no existe en este dispositivo. Sincroniza o impórtala antes de continuar."
                 )
                 return
             }
+
+            // Verificación anti-clonación: el payload NDEF se puede copiar
+            // a otra etiqueta, el UID de fábrica del chip no. Un serial
+            // distinto al registrado no abre la ficha.
+            if let registrado = encontrada.etiquetaSerial, registrado != lectura.serial {
+                error = ErrorPresentable(
+                    mensaje: ErrorNFC.serialNoCoincide(esperado: registrado, leido: lectura.serial)
+                        .errorDescription ?? "Serial no coincide"
+                )
+                return
+            }
+
+            // Backfill: etiqueta grabada antes de la migración a
+            // NFCTagReaderSession — se adopta su serial en esta lectura.
+            if encontrada.etiquetaSerial == nil, encontrada.etiquetaEscritaEn != nil {
+                encontrada.adoptarSerialNFC(lectura.serial)
+                try? contexto.save()
+            }
+
             propiedadSeleccionada = encontrada
         } catch let fallo as ErrorNFC {
             guard !fallo.esSilencioso else { return }

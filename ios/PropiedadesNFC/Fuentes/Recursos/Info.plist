@@ -6,9 +6,10 @@
 	<key>NFCReaderUsageDescription</key>
 	<string>Se usa el lector NFC para identificar y rotular propiedades mediante etiquetas adheridas en sitio.</string>
 
-	<!-- Formatos NDEF que la app espera encontrar en background tag reading. -->
+	<!-- TAG para NFCTagReaderSession (UID físico); NDEF para background reading. -->
 	<key>com.apple.developer.nfc.readersession.formats</key>
 	<array>
+		<string>TAG</string>
 		<string>NDEF</string>
 	</array>
 

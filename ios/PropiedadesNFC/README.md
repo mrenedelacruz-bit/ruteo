@@ -2,7 +2,7 @@
 
 App iOS de inventario de propiedades georreferenciadas con rotulado físico por etiquetas NFC.
 
-**Stack:** SwiftUI · SwiftData (local) · MapKit nativo · Core NFC (NDEF lectura/escritura) · CoreLocation
+**Stack:** SwiftUI · SwiftData (local) · MapKit nativo · Core NFC (`NFCTagReaderSession`, NDEF lectura/escritura + UID físico) · CoreLocation
 **Mínimo:** iOS 17.0 · iPhone 7 o superior
 
 ---
@@ -54,7 +54,7 @@ Estas no son opinables, son límites de Apple. Vienen documentadas aquí porque 
 | Límite | Consecuencia en el código |
 |---|---|
 | **Core NFC no funciona en el simulador** | `ServicioNFC.disponible` oculta toda la UI de NFC en lugar de mostrar botones muertos. Las pruebas cubren el *formato*, no la sesión. |
-| **`NFCNDEFReaderSession` no expone el UID de la etiqueta** | La identidad vive dentro del payload NDEF (`PayloadPropiedad`), no en el serial. El campo `Propiedad.etiquetaSerial` queda reservado y `nil` hasta que se migre a `NFCTagReaderSession`. |
+| **`NFCNDEFReaderSession` no expone el UID de la etiqueta** | Por eso se usa `NFCTagReaderSession` (polling `iso14443` + `iso15693`): la identidad lógica sigue viviendo en el payload NDEF, y el UID físico se captura como segunda verificación (`etiquetaSerial`). El entitlement lleva `TAG` además de `NDEF`. |
 | **Solo una sesión NFC por proceso** | `ServicioNFC.operacionEnCurso` bloquea una segunda llamada concurrente; un `begin()` solapado invalida la anterior en silencio. |
 | **`invalidateAfterFirstRead: true` no entrega `didDetect tags:`** | Se usa siempre `false`, incluso para lectura, porque hay que consultar `queryNDEFStatus` antes de leer o escribir. |
 | **La escritura no verifica capacidad por sí sola** | Se compara `mensaje.length` contra la capacidad reportada antes de grabar. Sin eso queda un NDEF truncado que pasa como válido. |
@@ -88,9 +88,20 @@ Cabe en una NTAG213 (137 B útiles); hay una prueba que falla si deja de caber.
 
 **Para cambiar el formato:** subir `versionActual`, mantener el decoder de v1, y no tocar `cadenaCanonica` de las versiones anteriores.
 
+### Serial físico y anti-clonación
+
+El UID de fábrica del chip (7 bytes en NTAG, grabado en silicio) se captura en cada operación vía `NFCTagReaderSession` y se persiste en `etiquetaSerial` como hexadecimal (`Data.serialHex`, formato congelado). Un clon barato copia el payload NDEF pero no puede replicar el UID, así que:
+
+- **Lectura**: si la ficha tiene serial registrado y el chip acercado trae otro, la app no abre la ficha y avisa de posible clon/sustitución.
+- **Bloqueo**: el serial se verifica nada más conectar, antes de leer un solo byte NDEF; después se verifica también el UUID del payload.
+- **Regrabación**: sustituir el chip es legítimo (reposición de etiqueta dañada) — el serial vigente pasa a ser el del último chip escrito.
+- **Backfill**: etiquetas grabadas antes de esta migración tienen `etiquetaSerial = nil`; adoptan el serial en su primera lectura.
+
+El UID no es criptográfico (un emulador puede falsificarlo); protege contra clonación casual, no contra un atacante con hardware dedicado. Para eso el siguiente escalón es NTAG424 con autenticación AES.
+
 ### Bloqueo permanente (write-lock)
 
-Desde el detalle de una propiedad con etiqueta grabada se puede aplicar `writeLock`. Es **irreversible**, así que la sesión no bloquea a ciegas: primero lee la etiqueta, decodifica el payload y **verifica que el UUID coincide con la propiedad en pantalla**; si no coincide, aborta sin tocar nada (`etiquetaNoCoincide`). Una etiqueta ya `readOnly` con el UUID correcto se trata como éxito idempotente — en campo es común reintentar un bloqueo que sí llegó a aplicarse. El bloqueo queda registrado en `etiquetaBloqueadaEn` y la UI deja de ofrecer la regrabación.
+Desde el detalle de una propiedad con etiqueta grabada se puede aplicar `writeLock`. Es **irreversible**, así que la sesión no bloquea a ciegas: primero exige el serial físico registrado (`serialNoCoincide` si el chip es otro), luego lee la etiqueta, decodifica el payload y **verifica que el UUID coincide con la propiedad en pantalla**; si algo no coincide, aborta sin tocar nada (`etiquetaNoCoincide`). Una etiqueta ya `readOnly` con el UUID correcto se trata como éxito idempotente — en campo es común reintentar un bloqueo que sí llegó a aplicarse. El bloqueo queda registrado en `etiquetaBloqueadaEn` y la UI deja de ofrecer la regrabación.
 
 ---
 
@@ -126,5 +137,6 @@ Cubren los dos contratos de formato (NFC y GeoJSON), que son lo único que no se
 
 - [x] Importación GeoJSON para cargar un dataset base — con validación estricta, dedupe por UUID y reporte de descartes.
 - [x] Bloqueo permanente de etiquetas (`writeLock`) — con verificación de identidad previa y doble confirmación en UI.
+- [x] Migración a `NFCTagReaderSession` — UID físico persistido en `etiquetaSerial`, verificación anti-clonación en lectura y bloqueo, backfill para etiquetas antiguas.
 - [ ] Sincronización multiusuario (hoy el store es local por dispositivo; el traspaso entre equipos es exportar/importar GeoJSON).
-- [ ] Migración a `NFCTagReaderSession` si se necesita el UID físico o autenticación por sector.
+- [ ] Autenticación criptográfica de etiquetas (NTAG424 + AES) si se necesita protección contra emuladores, no solo contra clones casuales.

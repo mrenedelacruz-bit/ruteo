@@ -27,6 +27,9 @@ enum ErrorNFC: LocalizedError, Equatable {
     case etiquetaNoCoincide(esperada: String, leida: String)
     /// El chip no admite el comando de bloqueo por software.
     case bloqueoNoSoportado(String)
+    /// El serial físico del chip no coincide con el registrado para la
+    /// propiedad: la etiqueta fue sustituida o es un clon del payload.
+    case serialNoCoincide(esperado: String, leido: String)
 
     var errorDescription: String? {
         switch self {
@@ -62,6 +65,8 @@ enum ErrorNFC: LocalizedError, Equatable {
             return "La etiqueta acercada pertenece a «\(leida)», no a «\(esperada)». No se bloqueó nada."
         case .bloqueoNoSoportado(let detalle):
             return "Este chip no admite bloqueo por comando: \(detalle). La etiqueta queda intacta."
+        case .serialNoCoincide(let esperado, let leido):
+            return "El serial físico del chip (\(leido)) no coincide con el registrado (\(esperado)). Posible etiqueta clonada o sustituida. No se realizó ninguna operación."
         }
     }
 }
